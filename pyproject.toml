@@ -37,6 +37,15 @@ dev = ["pytest", "pytest-cov"]
 [project.scripts]
 wt-tmux-picker = "wt_tmux_picker.cli:main"
 
+# ── Local development override ────────────────────────────────────────────────
+# Uncomment the block below to use your local tmux-manager checkout instead of
+# the PyPI release. Only uv reads this table; pip and PyPI ignore it entirely,
+# so it is safe to leave here permanently.
+#
+# [tool.uv.sources]
+# tmux-manager = { path = "../tmux-manager", editable = true }
+# ─────────────────────────────────────────────────────────────────────────────
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["wt_tmux_picker*"]
