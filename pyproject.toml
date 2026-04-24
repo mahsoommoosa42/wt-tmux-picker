@@ -23,7 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "prompt_toolkit",
-    "tmux-manager @ git+https://github.com/mahsoommoosa42/tmux-manager",
+    "tmux-manager",
 ]
 
 [project.urls]
