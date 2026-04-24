@@ -7,9 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from tmux_manager import TmuxManager
+
 from . import __version__
 from .ssh_config import parse_ssh_hosts
-from .tmux import has_fzf, has_tmux, list_sessions
+from .tmux import has_fzf, has_tmux
 from .tui import pick_profiles, pick_session
 from .windows_terminal import add_profile, list_tmux_profiles, remove_tmux_profiles
 
@@ -83,19 +85,25 @@ def _cleanup(
     return 0
 
 
-def _attach(host: str, user: str | None) -> int:
+def _plain_ssh(host: str, user: str | None) -> None:
+    """Open a plain SSH shell (no tmux) to *host*."""
     target = f"{user}@{host}" if user else host
-    sessions = list_sessions(host, user)
+    subprocess.run(["ssh", target])
+
+
+def _attach(host: str, user: str | None) -> int:
+    mgr = TmuxManager(host, user)
+    sessions = mgr.list_sessions()
 
     if not sessions:
-        subprocess.run(["ssh", target])
+        _plain_ssh(host, user)
         return 0
 
     selected = pick_session(sessions, host)
     if selected:
-        subprocess.run(["ssh", "-t", target, f"tmux attach-session -t '{selected}'"])
+        mgr.attach_session(selected)
     else:
-        subprocess.run(["ssh", target])
+        _plain_ssh(host, user)
     return 0
 
 

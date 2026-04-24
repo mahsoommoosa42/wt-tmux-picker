@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from wt_tmux_picker.cli import _attach, _build_parser, _cleanup, _setup, main
+from wt_tmux_picker.cli import _attach, _build_parser, _cleanup, _plain_ssh, _setup, main
 
 
 def _write_ssh_config(tmp_path: Path, hosts: list[str]) -> Path:
@@ -200,47 +200,66 @@ class TestCleanupFunction:
         assert "Nothing to clean up" in capsys.readouterr().out
 
 
+class TestPlainSsh:
+    def test_calls_ssh_with_host(self):
+        with patch("wt_tmux_picker.cli.subprocess.run") as mock_run:
+            _plain_ssh("devbox", None)
+        assert mock_run.call_args[0][0] == ["ssh", "devbox"]
+
+    def test_calls_ssh_with_user_at_host(self):
+        with patch("wt_tmux_picker.cli.subprocess.run") as mock_run:
+            _plain_ssh("devbox", "alice")
+        assert mock_run.call_args[0][0] == ["ssh", "alice@devbox"]
+
+
 class TestAttachFunction:
+    def _mock_mgr(self, sessions):
+        mgr = MagicMock()
+        mgr.list_sessions.return_value = sessions
+        return mgr
+
     def test_no_sessions_runs_plain_ssh(self):
+        mgr = self._mock_mgr([])
         with (
-            patch("wt_tmux_picker.cli.list_sessions", return_value=[]),
-            patch("wt_tmux_picker.cli.subprocess.run") as mock_run,
+            patch("wt_tmux_picker.cli.TmuxManager", return_value=mgr),
+            patch("wt_tmux_picker.cli._plain_ssh") as mock_plain,
         ):
             rc = _attach("devbox", None)
         assert rc == 0
-        mock_run.assert_called_once()
-        assert "ssh" in mock_run.call_args[0][0]
+        mock_plain.assert_called_once_with("devbox", None)
 
     def test_session_selected_attaches(self):
+        mgr = self._mock_mgr(["main"])
         with (
-            patch("wt_tmux_picker.cli.list_sessions", return_value=["main"]),
+            patch("wt_tmux_picker.cli.TmuxManager", return_value=mgr),
             patch("wt_tmux_picker.cli.pick_session", return_value="main"),
-            patch("wt_tmux_picker.cli.subprocess.run") as mock_run,
+            patch("wt_tmux_picker.cli._plain_ssh") as mock_plain,
         ):
             rc = _attach("devbox", None)
         assert rc == 0
-        args = mock_run.call_args[0][0]
-        assert "-t" in args
-        assert "main" in " ".join(args)
+        mgr.attach_session.assert_called_once_with("main")
+        mock_plain.assert_not_called()
 
     def test_session_cancelled_runs_plain_ssh(self):
+        mgr = self._mock_mgr(["main"])
         with (
-            patch("wt_tmux_picker.cli.list_sessions", return_value=["main"]),
+            patch("wt_tmux_picker.cli.TmuxManager", return_value=mgr),
             patch("wt_tmux_picker.cli.pick_session", return_value=None),
-            patch("wt_tmux_picker.cli.subprocess.run") as mock_run,
+            patch("wt_tmux_picker.cli._plain_ssh") as mock_plain,
         ):
             rc = _attach("devbox", None)
         assert rc == 0
-        args = mock_run.call_args[0][0]
-        assert "-t" not in args
+        mock_plain.assert_called_once()
+        mgr.attach_session.assert_not_called()
 
     def test_with_user(self):
+        mgr = self._mock_mgr([])
         with (
-            patch("wt_tmux_picker.cli.list_sessions", return_value=[]),
-            patch("wt_tmux_picker.cli.subprocess.run") as mock_run,
+            patch("wt_tmux_picker.cli.TmuxManager", return_value=mgr) as mock_cls,
+            patch("wt_tmux_picker.cli._plain_ssh"),
         ):
             _attach("devbox", "alice")
-        assert "alice@devbox" in mock_run.call_args[0][0]
+        mock_cls.assert_called_once_with("devbox", "alice")
 
 
 class TestMainEntrypoint:
@@ -262,9 +281,11 @@ class TestMainEntrypoint:
         assert rc == 0
 
     def test_attach_via_main(self):
+        mgr = MagicMock()
+        mgr.list_sessions.return_value = []
         with (
-            patch("wt_tmux_picker.cli.list_sessions", return_value=[]),
-            patch("wt_tmux_picker.cli.subprocess.run"),
+            patch("wt_tmux_picker.cli.TmuxManager", return_value=mgr),
+            patch("wt_tmux_picker.cli._plain_ssh"),
         ):
             rc = main(["attach", "devbox"])
         assert rc == 0

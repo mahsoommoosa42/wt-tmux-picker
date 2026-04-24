@@ -21,7 +21,10 @@ classifiers = [
     "Environment :: Console",
     "Topic :: Utilities",
 ]
-dependencies = ["prompt_toolkit", "paramiko"]
+dependencies = [
+    "prompt_toolkit",
+    "tmux-manager @ git+https://github.com/mahsoommoosa42/tmux-manager",
+]
 
 [project.urls]
 Homepage = "https://github.com/mahsoommoosa42/wt-tmux-picker"
