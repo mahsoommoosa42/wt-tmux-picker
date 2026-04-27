@@ -6,6 +6,7 @@ from pathlib import Path
 
 from wt_tmux_picker.windows_terminal import (
     _default_settings_path,
+    _has_jsonc_comments,
     _strip_jsonc,
     add_profile,
     list_tmux_profiles,
@@ -114,6 +115,44 @@ class TestStripJsonc:
         text = '"abc'
         assert _strip_jsonc(text) == '"abc'
 
+    def test_preserves_comma_bracket_inside_string(self):
+        text = '{"a": "value,}"}'
+        assert json.loads(_strip_jsonc(text)) == {"a": "value,}"}
+
+    def test_preserves_comma_square_bracket_inside_string(self):
+        text = '{"a": "value,]"}'
+        assert json.loads(_strip_jsonc(text)) == {"a": "value,]"}
+
+    def test_trailing_comma_at_eof(self):
+        text = '{"a": 1,'
+        assert _strip_jsonc(text) == '{"a": 1,'
+
+
+class TestHasJsoncComments:
+    def test_detects_line_comment(self):
+        assert _has_jsonc_comments('{"a": 1} // comment') is True
+
+    def test_detects_block_comment(self):
+        assert _has_jsonc_comments('{"a": /* x */ 1}') is True
+
+    def test_ignores_slashes_in_strings(self):
+        assert _has_jsonc_comments('{"url": "https://example.com"}') is False
+
+    def test_ignores_ms_appx_paths(self):
+        assert _has_jsonc_comments('{"icon": "ms-appx:///ProfileIcons/foo"}') is False
+
+    def test_no_comments(self):
+        assert _has_jsonc_comments('{"a": 1}') is False
+
+    def test_empty_input(self):
+        assert _has_jsonc_comments("") is False
+
+    def test_escaped_quotes_in_strings(self):
+        assert _has_jsonc_comments('{"a": "val\\"ue//not"}') is False
+
+    def test_unterminated_string(self):
+        assert _has_jsonc_comments('"abc') is False
+
 
 class TestSaveSettings:
     def test_writes_json_to_disk(self, tmp_path):
@@ -144,6 +183,12 @@ class TestSaveSettings:
         p = tmp_path / "settings.json"
         p.write_text('{// comment\n}', encoding="utf-8")
         save_settings({"a": 1}, p, _warn=False)
+        assert capsys.readouterr().err == ""
+
+    def test_no_warning_for_urls_with_slashes(self, tmp_path, capsys):
+        p = tmp_path / "settings.json"
+        p.write_text('{"url": "https://example.com"}', encoding="utf-8")
+        save_settings({"a": 1}, p)
         assert capsys.readouterr().err == ""
 
 

@@ -25,7 +25,11 @@ def _default_settings_path() -> Path:
 
 
 def _strip_jsonc(text: str) -> str:
-    """Remove // line comments, /* block comments */, and trailing commas."""
+    """Remove ``//`` and ``/* */`` comments and trailing commas.
+
+    The parser tracks string boundaries so that comment tokens and
+    commas inside quoted values are never modified.
+    """
     result: list[str] = []
     i = 0
     n = len(text)
@@ -54,11 +58,43 @@ def _strip_jsonc(text: str) -> str:
             while i + 1 < n and not (text[i] == '*' and text[i + 1] == '/'):
                 i += 1
             i += 2
+        elif c == ',':
+            j = i + 1
+            while j < n and text[j] in ' \t\r\n':
+                j += 1
+            if j < n and text[j] in ']}':
+                i = j
+            else:
+                result.append(c)
+                i += 1
         else:
             result.append(c)
             i += 1
-    cleaned = ''.join(result)
-    return re.sub(r',\s*([\]\}])', r'\1', cleaned)
+    return ''.join(result)
+
+
+def _has_jsonc_comments(text: str) -> bool:
+    """Return True if *text* contains ``//`` or ``/* */`` outside strings."""
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            i += 1
+            while i < n:
+                sc = text[i]
+                if sc == '\\':
+                    i += 2
+                    continue
+                if sc == '"':
+                    break
+                i += 1
+            i += 1
+        elif c == '/' and i + 1 < n and text[i + 1] in '/*':
+            return True
+        else:
+            i += 1
+    return False
 
 
 def load_settings(path: Path | None = None) -> dict:
@@ -86,7 +122,7 @@ def save_settings(
     if _warn:
         try:
             original = p.read_text(encoding="utf-8-sig")
-            if "//" in original or "/*" in original:
+            if _has_jsonc_comments(original):
                 print(
                     "WARNING: comments in settings.json will not be preserved.",
                     file=sys.stderr,
