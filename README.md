@@ -19,7 +19,7 @@ When you open a registered profile, a TUI dropdown lists your live tmux sessions
 ## Prerequisites
 
 - Windows Terminal
-- Python 3.10+
+- Python 3.12
 - SSH key authentication (no password prompts) configured for each host
 - `tmux` installed on remote hosts
 - `fzf` installed on remote hosts
