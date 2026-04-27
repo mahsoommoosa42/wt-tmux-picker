@@ -45,6 +45,12 @@ class TestLoadSettings:
         with pytest.raises(json.JSONDecodeError):
             load_settings(p)
 
+    def test_loads_json_with_utf8_bom(self, tmp_path):
+        p = tmp_path / "settings.json"
+        data = {"profiles": {"list": []}}
+        p.write_bytes(b"\xef\xbb\xbf" + json.dumps(data).encode("utf-8"))
+        assert load_settings(p) == data
+
 
 class TestSaveSettings:
     def test_writes_json_to_disk(self, tmp_path):

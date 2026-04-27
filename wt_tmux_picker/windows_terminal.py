@@ -29,7 +29,7 @@ def load_settings(path: Path | None = None) -> dict:
     Raises json.JSONDecodeError if the file is not valid JSON.
     """
     p = path or _default_settings_path()
-    text = p.read_text(encoding="utf-8")
+    text = p.read_text(encoding="utf-8-sig")
     return json.loads(text)
 
 
