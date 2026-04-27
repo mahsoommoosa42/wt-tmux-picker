@@ -201,15 +201,19 @@ class TestCleanupFunction:
 
 
 class TestPlainSsh:
-    def test_calls_ssh_with_host(self):
-        with patch("wt_tmux_picker.cli.subprocess.run") as mock_run:
+    def test_calls_open_shell_with_host(self):
+        mgr = MagicMock()
+        with patch("wt_tmux_picker.cli.TmuxManager", return_value=mgr) as mock_cls:
             _plain_ssh("devbox", None)
-        assert mock_run.call_args[0][0] == ["ssh", "devbox"]
+        mock_cls.assert_called_once_with("devbox", None)
+        mgr.open_shell.assert_called_once()
 
-    def test_calls_ssh_with_user_at_host(self):
-        with patch("wt_tmux_picker.cli.subprocess.run") as mock_run:
+    def test_calls_open_shell_with_user(self):
+        mgr = MagicMock()
+        with patch("wt_tmux_picker.cli.TmuxManager", return_value=mgr) as mock_cls:
             _plain_ssh("devbox", "alice")
-        assert mock_run.call_args[0][0] == ["ssh", "alice@devbox"]
+        mock_cls.assert_called_once_with("devbox", "alice")
+        mgr.open_shell.assert_called_once()
 
 
 class TestAttachFunction:

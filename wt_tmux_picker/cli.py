@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
 
@@ -86,9 +85,8 @@ def _cleanup(
 
 
 def _plain_ssh(host: str, user: str | None) -> None:
-    """Open a plain SSH shell (no tmux) to *host*."""
-    target = f"{user}@{host}" if user else host
-    subprocess.run(["ssh", target])
+    """Open a plain SSH shell (no tmux) to *host* via paramiko."""
+    TmuxManager(host, user).open_shell()
 
 
 def _attach(host: str, user: str | None) -> int:
