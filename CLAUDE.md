@@ -248,7 +248,7 @@ This allows:
 **Dev Dependencies:**
 - `pytest`, `pytest-cov` — testing and coverage
 
-**Python Version:** 3.10+ (f-strings, union types)
+**Python Version:** 3.12 only
 
 **Platform:** Windows only (depends on Windows Terminal and Windows file paths)
 
