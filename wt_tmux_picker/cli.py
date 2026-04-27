@@ -115,7 +115,7 @@ def _attach(host: str, user: str | None, *, peek: bool = True) -> int:
             sessions,
             host,
             get_info=lambda s: mgr.session_info(s),
-            get_pane=lambda s: mgr.capture_pane(s),
+            get_pane=lambda s: mgr.capture_pane(s, 50),
         )
     else:
         selected = pick_session(sessions, host)

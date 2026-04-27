@@ -504,7 +504,7 @@ wheels = [
 [[package]]
 name = "tmux-manager"
 version = "1.0.2"
-source = { git = "https://github.com/mahsoommoosa42/tmux-manager.git?branch=main#8a211fc8bc97d2bfeaf251831fb9f645870c6ed9" }
+source = { git = "https://github.com/mahsoommoosa42/tmux-manager.git?branch=devin%2F1777304466-add-session-info-capture-pane#46b0161e49df454f23b88cadd606dd4220c4b31d" }
 dependencies = [
     { name = "paramiko" },
 ]
@@ -601,6 +601,6 @@ requires-dist = [
     { name = "prompt-toolkit" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "tmux-manager", git = "https://github.com/mahsoommoosa42/tmux-manager.git?branch=main" },
+    { name = "tmux-manager", git = "https://github.com/mahsoommoosa42/tmux-manager.git?branch=devin%2F1777304466-add-session-info-capture-pane" },
 ]
 provides-extras = ["dev"]
