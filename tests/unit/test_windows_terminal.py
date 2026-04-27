@@ -7,7 +7,9 @@ from pathlib import Path
 from wt_tmux_picker.windows_terminal import (
     _default_settings_path,
     _has_jsonc_comments,
+    _strip_comments,
     _strip_jsonc,
+    _strip_trailing_commas,
     add_profile,
     list_tmux_profiles,
     load_settings,
@@ -126,6 +128,68 @@ class TestStripJsonc:
     def test_trailing_comma_at_eof(self):
         text = '{"a": 1,'
         assert _strip_jsonc(text) == '{"a": 1,'
+
+    def test_trailing_comma_with_line_comment_before_bracket(self):
+        text = '[1, // comment\n]'
+        assert json.loads(_strip_jsonc(text)) == [1]
+
+    def test_trailing_comma_with_block_comment_before_bracket(self):
+        text = '{"a": [1,/* comment */]}'
+        assert json.loads(_strip_jsonc(text)) == {"a": [1]}
+
+    def test_realistic_settings_trailing_comma_comment(self):
+        text = (
+            '{"list": [\n'
+            '    {"name": "PowerShell"},\n'
+            '    {"name": "cmd"}, // last entry\n'
+            ']}'
+        )
+        result = json.loads(_strip_jsonc(text))
+        assert result["list"] == [{"name": "PowerShell"}, {"name": "cmd"}]
+
+
+class TestStripComments:
+    def test_strips_line_comment(self):
+        assert _strip_comments('{"a": 1 // x\n}') == '{"a": 1 \n}'
+
+    def test_strips_block_comment(self):
+        assert _strip_comments('{"a": /* x */ 1}') == '{"a":  1}'
+
+    def test_preserves_strings(self):
+        text = '{"url": "https://example.com"}'
+        assert _strip_comments(text) == text
+
+    def test_empty_input(self):
+        assert _strip_comments("") == ""
+
+    def test_backslash_at_end_of_string(self):
+        text = '"a\\'
+        assert _strip_comments(text) == '"a\\'
+
+    def test_unterminated_string(self):
+        assert _strip_comments('"abc') == '"abc'
+
+
+class TestStripTrailingCommas:
+    def test_removes_in_array(self):
+        assert json.loads(_strip_trailing_commas('[1,]')) == [1]
+
+    def test_removes_in_object(self):
+        assert json.loads(_strip_trailing_commas('{"a": 1,}')) == {"a": 1}
+
+    def test_preserves_comma_in_string(self):
+        text = '{"a": "x,}"}'
+        assert json.loads(_strip_trailing_commas(text)) == {"a": "x,}"}
+
+    def test_empty_input(self):
+        assert _strip_trailing_commas("") == ""
+
+    def test_backslash_at_end_of_string(self):
+        text = '"a\\'
+        assert _strip_trailing_commas(text) == '"a\\'
+
+    def test_unterminated_string(self):
+        assert _strip_trailing_commas('"abc') == '"abc'
 
 
 class TestHasJsoncComments:

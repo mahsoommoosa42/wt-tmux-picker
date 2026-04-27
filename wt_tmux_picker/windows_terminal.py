@@ -24,11 +24,11 @@ def _default_settings_path() -> Path:
     return _WT_SETTINGS_PATH
 
 
-def _strip_jsonc(text: str) -> str:
-    """Remove ``//`` and ``/* */`` comments and trailing commas.
+def _strip_comments(text: str) -> str:
+    """Remove ``//`` line comments and ``/* */`` block comments.
 
-    The parser tracks string boundaries so that comment tokens and
-    commas inside quoted values are never modified.
+    The parser tracks string boundaries so that comment-like tokens
+    inside quoted values are never modified.
     """
     result: list[str] = []
     i = 0
@@ -58,6 +58,37 @@ def _strip_jsonc(text: str) -> str:
             while i + 1 < n and not (text[i] == '*' and text[i + 1] == '/'):
                 i += 1
             i += 2
+        else:
+            result.append(c)
+            i += 1
+    return ''.join(result)
+
+
+def _strip_trailing_commas(text: str) -> str:
+    """Remove trailing commas before ``]`` or ``}``.
+
+    Respects string boundaries so commas inside quoted values are
+    never modified.
+    """
+    result: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            result.append(c)
+            i += 1
+            while i < n:
+                sc = text[i]
+                result.append(sc)
+                if sc == '\\':
+                    i += 1
+                    if i < n:
+                        result.append(text[i])
+                elif sc == '"':
+                    break
+                i += 1
+            i += 1
         elif c == ',':
             j = i + 1
             while j < n and text[j] in ' \t\r\n':
@@ -71,6 +102,17 @@ def _strip_jsonc(text: str) -> str:
             result.append(c)
             i += 1
     return ''.join(result)
+
+
+def _strip_jsonc(text: str) -> str:
+    """Remove comments and trailing commas from JSONC text.
+
+    Uses a two-pass approach: first strips all comments, then strips
+    trailing commas from the comment-free result. This correctly
+    handles cases where a comment sits between a trailing comma and
+    a closing bracket.
+    """
+    return _strip_trailing_commas(_strip_comments(text))
 
 
 def _has_jsonc_comments(text: str) -> bool:
