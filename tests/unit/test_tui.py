@@ -145,8 +145,8 @@ _KEY_MAP = {
 }
 
 
-def _get_handlers(mock_app_cls):
-    kb = mock_app_cls.call_args.kwargs["key_bindings"]
+def _get_handlers(mock_radio):
+    kb = mock_radio.control.key_bindings
     handlers = {}
     for b in kb.bindings:
         for name, keys in _KEY_MAP.items():
@@ -163,10 +163,10 @@ class TestPickSessionWithPreview:
         (p_radio, p_ta, p_frame, p_vs, p_hs, p_layout, p_label, p_html) = _patches()
         with p_radio as mr, p_ta, p_frame, p_vs, p_hs, p_layout, p_label, p_html:
             mr.return_value = mock_radio
-            with patch("wt_tmux_picker.tui.Application", return_value=mock_app) as mock_cls:
+            with patch("wt_tmux_picker.tui.Application", return_value=mock_app):
 
                 def run_side_effect():
-                    h = _get_handlers(mock_cls)
+                    h = _get_handlers(mock_radio)
                     h["enter"](MagicMock())
 
                 mock_app.run.side_effect = run_side_effect
@@ -185,10 +185,10 @@ class TestPickSessionWithPreview:
         (p_radio, p_ta, p_frame, p_vs, p_hs, p_layout, p_label, p_html) = _patches()
         with p_radio as mr, p_ta, p_frame, p_vs, p_hs, p_layout, p_label, p_html:
             mr.return_value = mock_radio
-            with patch("wt_tmux_picker.tui.Application", return_value=mock_app) as mock_cls:
+            with patch("wt_tmux_picker.tui.Application", return_value=mock_app):
 
                 def run_side_effect():
-                    h = _get_handlers(mock_cls)
+                    h = _get_handlers(mock_radio)
                     h["escape"](MagicMock())
 
                 mock_app.run.side_effect = run_side_effect
@@ -207,10 +207,10 @@ class TestPickSessionWithPreview:
         (p_radio, p_ta, p_frame, p_vs, p_hs, p_layout, p_label, p_html) = _patches()
         with p_radio as mr, p_ta, p_frame, p_vs, p_hs, p_layout, p_label, p_html:
             mr.return_value = mock_radio
-            with patch("wt_tmux_picker.tui.Application", return_value=mock_app) as mock_cls:
+            with patch("wt_tmux_picker.tui.Application", return_value=mock_app):
 
                 def run_side_effect():
-                    h = _get_handlers(mock_cls)
+                    h = _get_handlers(mock_radio)
                     ev = MagicMock()
                     h["down"](ev)
                     h["up"](ev)
@@ -233,10 +233,10 @@ class TestPickSessionWithPreview:
         (p_radio, p_ta, p_frame, p_vs, p_hs, p_layout, p_label, p_html) = _patches()
         with p_radio as mr, p_ta, p_frame, p_vs, p_hs, p_layout, p_label, p_html:
             mr.return_value = mock_radio
-            with patch("wt_tmux_picker.tui.Application", return_value=mock_app) as mock_cls:
+            with patch("wt_tmux_picker.tui.Application", return_value=mock_app):
 
                 def run_side_effect():
-                    h = _get_handlers(mock_cls)
+                    h = _get_handlers(mock_radio)
                     h["escape"](MagicMock())
 
                 mock_app.run.side_effect = run_side_effect
@@ -255,10 +255,10 @@ class TestPickSessionWithPreview:
         (p_radio, p_ta, p_frame, p_vs, p_hs, p_layout, p_label, p_html) = _patches()
         with p_radio as mr, p_ta, p_frame, p_vs, p_hs, p_layout, p_label, p_html:
             mr.return_value = mock_radio
-            with patch("wt_tmux_picker.tui.Application", return_value=mock_app) as mock_cls:
+            with patch("wt_tmux_picker.tui.Application", return_value=mock_app):
 
                 def run_side_effect():
-                    h = _get_handlers(mock_cls)
+                    h = _get_handlers(mock_radio)
                     h["down"](MagicMock())
                     h["enter"](MagicMock())
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from html import escape as html_escape
 from typing import Callable
 
 from prompt_toolkit.application import Application
@@ -72,6 +73,13 @@ def pick_session_with_preview(
     values = [(s, s) for s in sessions]
     radio = RadioList(values)
 
+    # Replace RadioList's internal key bindings so our handlers take
+    # priority for enter/up/down (RadioList's _click/_up/_down would
+    # otherwise shadow the app-level bindings).
+    kb = KeyBindings()
+
+    result_box: list[str | None] = [None]
+
     preview = TextArea(
         text="",
         read_only=True,
@@ -89,10 +97,6 @@ def pick_session_with_preview(
         preview.text = _format_preview(info, pane)
 
     _refresh_preview()
-
-    kb = KeyBindings()
-
-    result_box: list[str | None] = [None]
 
     @kb.add("enter")
     def _accept(event) -> None:  # type: ignore[no-untyped-def]
@@ -116,6 +120,10 @@ def pick_session_with_preview(
         )
         _refresh_preview()
 
+    # Override RadioList's control bindings with ours so there is no
+    # conflict between the control-level and app-level handlers.
+    radio.control.key_bindings = kb
+
     body = VSplit(
         [
             Frame(radio, title="Sessions"),
@@ -124,10 +132,11 @@ def pick_session_with_preview(
         padding=1,
     )
 
+    safe_host = html_escape(host)
     layout = Layout(
         HSplit(
             [
-                Label(HTML(f"  <b>tmux sessions on {host}</b>")),
+                Label(HTML(f"  <b>tmux sessions on {safe_host}</b>")),
                 body,
                 Label("  ↑/↓ move  Enter select  Escape plain SSH"),
             ]
@@ -136,7 +145,6 @@ def pick_session_with_preview(
 
     app: Application[None] = Application(
         layout=layout,
-        key_bindings=kb,
         full_screen=True,
     )
     app.run()

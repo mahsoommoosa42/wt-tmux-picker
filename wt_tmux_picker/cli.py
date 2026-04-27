@@ -11,7 +11,7 @@ from tmux_manager import TmuxManager
 
 from . import __version__
 from .ssh_config import parse_ssh_hosts
-from .tmux import capture_pane, has_fzf, has_tmux, session_info
+from .tmux import has_fzf, has_tmux
 from .tui import pick_profiles, pick_session, pick_session_with_preview
 from .windows_terminal import (
     add_profile,
@@ -114,8 +114,8 @@ def _attach(host: str, user: str | None, *, peek: bool = True) -> int:
         selected = pick_session_with_preview(
             sessions,
             host,
-            get_info=lambda s: session_info(host, user, name=s),
-            get_pane=lambda s: capture_pane(host, user, name=s),
+            get_info=lambda s: mgr.session_info(s),
+            get_pane=lambda s: mgr.capture_pane(s),
         )
     else:
         selected = pick_session(sessions, host)
