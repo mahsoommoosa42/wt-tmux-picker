@@ -56,3 +56,6 @@ source = ["wt_tmux_picker"]
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.uv.sources]
+tmux-manager = {git = "https://github.com/mahsoommoosa42/tmux-manager.git", branch = "devin/1777304466-add-session-info-capture-pane"}
