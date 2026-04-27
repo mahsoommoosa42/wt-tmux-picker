@@ -105,9 +105,13 @@ class TestParseSSHHosts:
         assert "tilde-host" in result
 
     def test_include_relative_path(self, tmp_path):
-        (tmp_path / "extra.conf").write_text("Host rel-host\n", encoding="utf-8")
-        cfg = _write_config(tmp_path, "Include extra.conf\n")
-        result = parse_ssh_hosts(cfg)
+        ssh_dir = tmp_path / ".ssh"
+        ssh_dir.mkdir()
+        (ssh_dir / "extra.conf").write_text("Host rel-host\n", encoding="utf-8")
+        cfg = ssh_dir / "config"
+        cfg.write_text("Include extra.conf\n", encoding="utf-8")
+        with patch("wt_tmux_picker.ssh_config.Path.home", return_value=tmp_path):
+            result = parse_ssh_hosts(cfg)
         assert "rel-host" in result
 
     def test_include_nonexistent_ignored(self, tmp_path):

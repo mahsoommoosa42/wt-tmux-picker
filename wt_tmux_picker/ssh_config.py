@@ -27,7 +27,7 @@ def _parse_file(config_path: Path, seen: set[Path]) -> list[str]:
             if pattern.startswith("~"):
                 pattern = str(Path.home()) + pattern[1:]
             elif not Path(pattern).is_absolute():
-                pattern = str(ssh_dir / pattern)
+                pattern = str(Path.home() / ".ssh" / pattern)
             for match in sorted(glob.glob(pattern)):
                 p = Path(match)
                 if p.is_file():
