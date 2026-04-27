@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+import sys
 import uuid
 from pathlib import Path
 
@@ -22,20 +24,75 @@ def _default_settings_path() -> Path:
     return _WT_SETTINGS_PATH
 
 
+def _strip_jsonc(text: str) -> str:
+    """Remove // line comments, /* block comments */, and trailing commas."""
+    result: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            result.append(c)
+            i += 1
+            while i < n:
+                sc = text[i]
+                result.append(sc)
+                if sc == '\\':
+                    i += 1
+                    if i < n:
+                        result.append(text[i])
+                elif sc == '"':
+                    break
+                i += 1
+            i += 1
+        elif c == '/' and i + 1 < n and text[i + 1] == '/':
+            i += 2
+            while i < n and text[i] != '\n':
+                i += 1
+        elif c == '/' and i + 1 < n and text[i + 1] == '*':
+            i += 2
+            while i + 1 < n and not (text[i] == '*' and text[i + 1] == '/'):
+                i += 1
+            i += 2
+        else:
+            result.append(c)
+            i += 1
+    cleaned = ''.join(result)
+    return re.sub(r',\s*([\]\}])', r'\1', cleaned)
+
+
 def load_settings(path: Path | None = None) -> dict:
     """Read and parse settings.json.
+
+    Handles JSONC features (comments and trailing commas) used by
+    Windows Terminal.
 
     Raises FileNotFoundError if the file does not exist.
     Raises json.JSONDecodeError if the file is not valid JSON.
     """
     p = path or _default_settings_path()
     text = p.read_text(encoding="utf-8-sig")
-    return json.loads(text)
+    return json.loads(_strip_jsonc(text))
 
 
-def save_settings(settings: dict, path: Path | None = None) -> None:
-    """Write *settings* back to disk as pretty-printed UTF-8 JSON."""
+def save_settings(
+    settings: dict, path: Path | None = None, *, _warn: bool = True
+) -> None:
+    """Write *settings* back to disk as pretty-printed UTF-8 JSON.
+
+    JSONC comments present in the original file are not preserved.
+    """
     p = path or _default_settings_path()
+    if _warn:
+        try:
+            original = p.read_text(encoding="utf-8-sig")
+            if "//" in original or "/*" in original:
+                print(
+                    "WARNING: comments in settings.json will not be preserved.",
+                    file=sys.stderr,
+                )
+        except FileNotFoundError:
+            pass
     p.write_text(json.dumps(settings, indent=4), encoding="utf-8")
 
 
