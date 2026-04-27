@@ -225,8 +225,9 @@ class TestPickSessionWithPreview:
                 )
         assert result is None
 
-    def test_current_value_none_clears_preview(self):
-        mock_radio = _make_radio(None, [("main", "main")])
+    def test_out_of_range_index_clears_preview(self):
+        mock_radio = _make_radio("main", [("main", "main")])
+        mock_radio._selected_index = 5  # out of range
         mock_app = MagicMock()
 
         (p_radio, p_ta, p_frame, p_vs, p_hs, p_layout, p_label, p_html) = _patches()
@@ -246,3 +247,26 @@ class TestPickSessionWithPreview:
                     get_pane=lambda s: "",
                 )
         assert result is None
+
+    def test_enter_returns_navigated_session(self):
+        mock_radio = _make_radio("main", [("main", "main"), ("work", "work")])
+        mock_app = MagicMock()
+
+        (p_radio, p_ta, p_frame, p_vs, p_hs, p_layout, p_label, p_html) = _patches()
+        with p_radio as mr, p_ta, p_frame, p_vs, p_hs, p_layout, p_label, p_html:
+            mr.return_value = mock_radio
+            with patch("wt_tmux_picker.tui.Application", return_value=mock_app) as mock_cls:
+
+                def run_side_effect():
+                    h = _get_handlers(mock_cls)
+                    h["down"](MagicMock())
+                    h["enter"](MagicMock())
+
+                mock_app.run.side_effect = run_side_effect
+                result = pick_session_with_preview(
+                    ["main", "work"],
+                    "devbox",
+                    get_info=lambda s: {"name": s, "windows": 1, "created": "now", "attached": False},
+                    get_pane=lambda s: "$ ls",
+                )
+        assert result == "work"

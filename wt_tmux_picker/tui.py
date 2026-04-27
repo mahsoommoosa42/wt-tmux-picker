@@ -80,10 +80,10 @@ def pick_session_with_preview(
     )
 
     def _refresh_preview() -> None:
-        current = radio.current_value
-        if current is None:
+        if radio._selected_index >= len(radio.values):
             preview.text = ""
             return
+        current = radio.values[radio._selected_index][0]
         info = get_info(current)
         pane = get_pane(current)
         preview.text = _format_preview(info, pane)
@@ -96,7 +96,7 @@ def pick_session_with_preview(
 
     @kb.add("enter")
     def _accept(event) -> None:  # type: ignore[no-untyped-def]
-        result_box[0] = radio.current_value
+        result_box[0] = radio.values[radio._selected_index][0]
         event.app.exit()
 
     @kb.add("escape")
