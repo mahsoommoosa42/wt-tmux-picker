@@ -13,7 +13,12 @@ from . import __version__
 from .ssh_config import parse_ssh_hosts
 from .tmux import has_fzf, has_tmux
 from .tui import pick_profiles, pick_session
-from .windows_terminal import add_profile, list_tmux_profiles, remove_tmux_profiles
+from .windows_terminal import (
+    add_profile,
+    list_tmux_profiles,
+    remove_tmux_profiles,
+    warn_jsonc_comments,
+)
 
 
 def _setup(
@@ -31,6 +36,9 @@ def _setup(
     if not hosts:
         print("No hosts found in SSH config.")
         return 0
+
+    if not dry_run:
+        warn_jsonc_comments(settings_path)
 
     for host in hosts:
         if not has_tmux(host, user, dry_run=dry_run):
@@ -71,6 +79,9 @@ def _cleanup(
         if not profile_names:
             print("Nothing removed.")
             return 0
+
+    if not dry_run:
+        warn_jsonc_comments(settings_path)
 
     removed = remove_tmux_profiles(
         profile_names, settings_path=settings_path, dry_run=dry_run

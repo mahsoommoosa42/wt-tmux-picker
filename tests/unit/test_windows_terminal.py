@@ -15,6 +15,7 @@ from wt_tmux_picker.windows_terminal import (
     load_settings,
     remove_tmux_profiles,
     save_settings,
+    warn_jsonc_comments,
 )
 
 
@@ -226,33 +227,34 @@ class TestSaveSettings:
         save_settings(data, p)
         assert json.loads(p.read_text(encoding="utf-8")) == data
 
-    def test_warns_when_comments_present(self, tmp_path, capsys):
+    def test_save_does_not_warn(self, tmp_path, capsys):
         p = tmp_path / "settings.json"
         p.write_text('{// comment\n}', encoding="utf-8")
         save_settings({"a": 1}, p)
+        assert capsys.readouterr().err == ""
+
+
+class TestWarnJsoncComments:
+    def test_warns_when_comments_present(self, tmp_path, capsys):
+        p = tmp_path / "settings.json"
+        p.write_text('{// comment\n}', encoding="utf-8")
+        warn_jsonc_comments(p)
         assert "WARNING" in capsys.readouterr().err
 
     def test_no_warning_without_comments(self, tmp_path, capsys):
         p = tmp_path / "settings.json"
         p.write_text('{}', encoding="utf-8")
-        save_settings({"a": 1}, p)
+        warn_jsonc_comments(p)
         assert capsys.readouterr().err == ""
 
     def test_no_warning_when_file_missing(self, tmp_path, capsys):
-        p = tmp_path / "settings.json"
-        save_settings({"a": 1}, p)
-        assert capsys.readouterr().err == ""
-
-    def test_warn_false_suppresses_warning(self, tmp_path, capsys):
-        p = tmp_path / "settings.json"
-        p.write_text('{// comment\n}', encoding="utf-8")
-        save_settings({"a": 1}, p, _warn=False)
+        warn_jsonc_comments(tmp_path / "missing.json")
         assert capsys.readouterr().err == ""
 
     def test_no_warning_for_urls_with_slashes(self, tmp_path, capsys):
         p = tmp_path / "settings.json"
         p.write_text('{"url": "https://example.com"}', encoding="utf-8")
-        save_settings({"a": 1}, p)
+        warn_jsonc_comments(p)
         assert capsys.readouterr().err == ""
 
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 import sys
 import uuid
 from pathlib import Path
@@ -139,6 +138,20 @@ def _has_jsonc_comments(text: str) -> bool:
     return False
 
 
+def warn_jsonc_comments(path: Path | None = None) -> None:
+    """Print a single warning if *path* contains JSONC comments."""
+    p = path or _default_settings_path()
+    try:
+        text = p.read_text(encoding="utf-8-sig")
+    except FileNotFoundError:
+        return
+    if _has_jsonc_comments(text):
+        print(
+            "WARNING: comments in settings.json will not be preserved.",
+            file=sys.stderr,
+        )
+
+
 def load_settings(path: Path | None = None) -> dict:
     """Read and parse settings.json.
 
@@ -153,24 +166,14 @@ def load_settings(path: Path | None = None) -> dict:
     return json.loads(_strip_jsonc(text))
 
 
-def save_settings(
-    settings: dict, path: Path | None = None, *, _warn: bool = True
-) -> None:
+def save_settings(settings: dict, path: Path | None = None) -> None:
     """Write *settings* back to disk as pretty-printed UTF-8 JSON.
 
     JSONC comments present in the original file are not preserved.
+    Call :func:`warn_jsonc_comments` once before a batch of writes
+    to alert the user.
     """
     p = path or _default_settings_path()
-    if _warn:
-        try:
-            original = p.read_text(encoding="utf-8-sig")
-            if _has_jsonc_comments(original):
-                print(
-                    "WARNING: comments in settings.json will not be preserved.",
-                    file=sys.stderr,
-                )
-        except FileNotFoundError:
-            pass
     p.write_text(json.dumps(settings, indent=4), encoding="utf-8")
 
 

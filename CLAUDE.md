@@ -79,7 +79,7 @@ LICENSE
 ### `wt_tmux_picker/ssh_config.py`
 - **Function:** `parse_ssh_hosts(path: Path | None) → list[str]`
 - **Purpose:** Extract host aliases from `~/.ssh/config`
-- **Implementation:** Uses paramiko.SSHConfig parser
+- **Implementation:** Regex-based parser with `Include` directive support (follows globs, resolves relative paths against `~/.ssh/` per OpenSSH spec)
 - **Testing:** Mock file I/O, test various SSH config formats
 
 ### `wt_tmux_picker/tui.py`
@@ -292,7 +292,7 @@ This allows:
 ## Security Considerations
 
 - **Settings file access:** Can read/write settings.json if user has permissions
-- **SSH config parsing:** Uses paramiko's SSHConfig parser (trusted library)
+- **SSH config parsing:** Regex-based parser for Host/Include directives
 - **SSH key usage:** Relies on system SSH setup and permissions
 - **No credential storage:** All auth via system SSH keys
 

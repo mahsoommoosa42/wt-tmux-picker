@@ -16,7 +16,6 @@ def _parse_file(config_path: Path, seen: set[Path]) -> list[str]:
 
     text = config_path.read_text(encoding="utf-8")
     hosts: list[str] = []
-    ssh_dir = config_path.parent
 
     for line in text.splitlines():
         stripped = line.strip()
@@ -27,6 +26,7 @@ def _parse_file(config_path: Path, seen: set[Path]) -> list[str]:
             if pattern.startswith("~"):
                 pattern = str(Path.home()) + pattern[1:]
             elif not Path(pattern).is_absolute():
+                # OpenSSH resolves relative Include paths against ~/.ssh/
                 pattern = str(Path.home() / ".ssh" / pattern)
             for match in sorted(glob.glob(pattern)):
                 p = Path(match)
