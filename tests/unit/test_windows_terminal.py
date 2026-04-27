@@ -6,11 +6,16 @@ from pathlib import Path
 
 from wt_tmux_picker.windows_terminal import (
     _default_settings_path,
+    _has_jsonc_comments,
+    _strip_comments,
+    _strip_jsonc,
+    _strip_trailing_commas,
     add_profile,
     list_tmux_profiles,
     load_settings,
     remove_tmux_profiles,
     save_settings,
+    warn_jsonc_comments,
 )
 
 
@@ -51,6 +56,168 @@ class TestLoadSettings:
         p.write_bytes(b"\xef\xbb\xbf" + json.dumps(data).encode("utf-8"))
         assert load_settings(p) == data
 
+    def test_loads_jsonc_with_line_comments(self, tmp_path):
+        p = tmp_path / "settings.json"
+        p.write_text(
+            '{\n// comment\n"profiles": {"list": []}\n}',
+            encoding="utf-8",
+        )
+        assert load_settings(p) == {"profiles": {"list": []}}
+
+    def test_loads_jsonc_with_block_comments(self, tmp_path):
+        p = tmp_path / "settings.json"
+        p.write_text(
+            '{/* block */"profiles": {"list": []}}',
+            encoding="utf-8",
+        )
+        assert load_settings(p) == {"profiles": {"list": []}}
+
+    def test_loads_jsonc_with_trailing_comma(self, tmp_path):
+        p = tmp_path / "settings.json"
+        p.write_text(
+            '{"profiles": {"list": [{"name": "a"},]}}',
+            encoding="utf-8",
+        )
+        result = load_settings(p)
+        assert result["profiles"]["list"] == [{"name": "a"}]
+
+
+class TestStripJsonc:
+    def test_preserves_slashes_in_strings(self):
+        text = '{"url": "https://example.com"}'
+        assert json.loads(_strip_jsonc(text)) == {"url": "https://example.com"}
+
+    def test_handles_escaped_quotes_in_strings(self):
+        text = '{"val": "a \\\"b\\\""}'
+        assert _strip_jsonc(text) == text
+
+    def test_strips_line_comment_after_value(self):
+        text = '{"a": 1 // comment\n}'
+        assert json.loads(_strip_jsonc(text)) == {"a": 1}
+
+    def test_strips_block_comment_inline(self):
+        text = '{"a": /* x */ 1}'
+        assert json.loads(_strip_jsonc(text)) == {"a": 1}
+
+    def test_removes_trailing_comma_in_array(self):
+        text = '[1, 2,]'
+        assert json.loads(_strip_jsonc(text)) == [1, 2]
+
+    def test_removes_trailing_comma_in_object(self):
+        text = '{"a": 1,}'
+        assert json.loads(_strip_jsonc(text)) == {"a": 1}
+
+    def test_empty_input(self):
+        assert _strip_jsonc("") == ""
+
+    def test_backslash_at_end_of_string(self):
+        text = '"a\\'
+        assert _strip_jsonc(text) == '"a\\'
+
+    def test_unterminated_string(self):
+        text = '"abc'
+        assert _strip_jsonc(text) == '"abc'
+
+    def test_preserves_comma_bracket_inside_string(self):
+        text = '{"a": "value,}"}'
+        assert json.loads(_strip_jsonc(text)) == {"a": "value,}"}
+
+    def test_preserves_comma_square_bracket_inside_string(self):
+        text = '{"a": "value,]"}'
+        assert json.loads(_strip_jsonc(text)) == {"a": "value,]"}
+
+    def test_trailing_comma_at_eof(self):
+        text = '{"a": 1,'
+        assert _strip_jsonc(text) == '{"a": 1,'
+
+    def test_trailing_comma_with_line_comment_before_bracket(self):
+        text = '[1, // comment\n]'
+        assert json.loads(_strip_jsonc(text)) == [1]
+
+    def test_trailing_comma_with_block_comment_before_bracket(self):
+        text = '{"a": [1,/* comment */]}'
+        assert json.loads(_strip_jsonc(text)) == {"a": [1]}
+
+    def test_realistic_settings_trailing_comma_comment(self):
+        text = (
+            '{"list": [\n'
+            '    {"name": "PowerShell"},\n'
+            '    {"name": "cmd"}, // last entry\n'
+            ']}'
+        )
+        result = json.loads(_strip_jsonc(text))
+        assert result["list"] == [{"name": "PowerShell"}, {"name": "cmd"}]
+
+
+class TestStripComments:
+    def test_strips_line_comment(self):
+        assert _strip_comments('{"a": 1 // x\n}') == '{"a": 1 \n}'
+
+    def test_strips_block_comment(self):
+        assert _strip_comments('{"a": /* x */ 1}') == '{"a":  1}'
+
+    def test_preserves_strings(self):
+        text = '{"url": "https://example.com"}'
+        assert _strip_comments(text) == text
+
+    def test_empty_input(self):
+        assert _strip_comments("") == ""
+
+    def test_backslash_at_end_of_string(self):
+        text = '"a\\'
+        assert _strip_comments(text) == '"a\\'
+
+    def test_unterminated_string(self):
+        assert _strip_comments('"abc') == '"abc'
+
+
+class TestStripTrailingCommas:
+    def test_removes_in_array(self):
+        assert json.loads(_strip_trailing_commas('[1,]')) == [1]
+
+    def test_removes_in_object(self):
+        assert json.loads(_strip_trailing_commas('{"a": 1,}')) == {"a": 1}
+
+    def test_preserves_comma_in_string(self):
+        text = '{"a": "x,}"}'
+        assert json.loads(_strip_trailing_commas(text)) == {"a": "x,}"}
+
+    def test_empty_input(self):
+        assert _strip_trailing_commas("") == ""
+
+    def test_backslash_at_end_of_string(self):
+        text = '"a\\'
+        assert _strip_trailing_commas(text) == '"a\\'
+
+    def test_unterminated_string(self):
+        assert _strip_trailing_commas('"abc') == '"abc'
+
+
+class TestHasJsoncComments:
+    def test_detects_line_comment(self):
+        assert _has_jsonc_comments('{"a": 1} // comment') is True
+
+    def test_detects_block_comment(self):
+        assert _has_jsonc_comments('{"a": /* x */ 1}') is True
+
+    def test_ignores_slashes_in_strings(self):
+        assert _has_jsonc_comments('{"url": "https://example.com"}') is False
+
+    def test_ignores_ms_appx_paths(self):
+        assert _has_jsonc_comments('{"icon": "ms-appx:///ProfileIcons/foo"}') is False
+
+    def test_no_comments(self):
+        assert _has_jsonc_comments('{"a": 1}') is False
+
+    def test_empty_input(self):
+        assert _has_jsonc_comments("") is False
+
+    def test_escaped_quotes_in_strings(self):
+        assert _has_jsonc_comments('{"a": "val\\"ue//not"}') is False
+
+    def test_unterminated_string(self):
+        assert _has_jsonc_comments('"abc') is False
+
 
 class TestSaveSettings:
     def test_writes_json_to_disk(self, tmp_path):
@@ -59,6 +226,36 @@ class TestSaveSettings:
         p.write_text("{}", encoding="utf-8")
         save_settings(data, p)
         assert json.loads(p.read_text(encoding="utf-8")) == data
+
+    def test_save_does_not_warn(self, tmp_path, capsys):
+        p = tmp_path / "settings.json"
+        p.write_text('{// comment\n}', encoding="utf-8")
+        save_settings({"a": 1}, p)
+        assert capsys.readouterr().err == ""
+
+
+class TestWarnJsoncComments:
+    def test_warns_when_comments_present(self, tmp_path, capsys):
+        p = tmp_path / "settings.json"
+        p.write_text('{// comment\n}', encoding="utf-8")
+        warn_jsonc_comments(p)
+        assert "WARNING" in capsys.readouterr().err
+
+    def test_no_warning_without_comments(self, tmp_path, capsys):
+        p = tmp_path / "settings.json"
+        p.write_text('{}', encoding="utf-8")
+        warn_jsonc_comments(p)
+        assert capsys.readouterr().err == ""
+
+    def test_no_warning_when_file_missing(self, tmp_path, capsys):
+        warn_jsonc_comments(tmp_path / "missing.json")
+        assert capsys.readouterr().err == ""
+
+    def test_no_warning_for_urls_with_slashes(self, tmp_path, capsys):
+        p = tmp_path / "settings.json"
+        p.write_text('{"url": "https://example.com"}', encoding="utf-8")
+        warn_jsonc_comments(p)
+        assert capsys.readouterr().err == ""
 
 
 class TestAddProfile:

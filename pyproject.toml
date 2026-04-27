@@ -39,6 +39,9 @@ dev = ["pytest", "pytest-cov"]
 [project.scripts]
 wt-tmux-picker = "wt_tmux_picker.cli:main"
 
+[tool.uv.sources]
+tmux-manager = {git = "https://github.com/mahsoommoosa42/tmux-manager.git", branch = "main"}
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["wt_tmux_picker*"]

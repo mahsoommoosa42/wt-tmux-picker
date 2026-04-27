@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import uuid
 from pathlib import Path
 
@@ -22,19 +23,156 @@ def _default_settings_path() -> Path:
     return _WT_SETTINGS_PATH
 
 
+def _strip_comments(text: str) -> str:
+    """Remove ``//`` line comments and ``/* */`` block comments.
+
+    The parser tracks string boundaries so that comment-like tokens
+    inside quoted values are never modified.
+    """
+    result: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            result.append(c)
+            i += 1
+            while i < n:
+                sc = text[i]
+                result.append(sc)
+                if sc == '\\':
+                    i += 1
+                    if i < n:
+                        result.append(text[i])
+                elif sc == '"':
+                    break
+                i += 1
+            i += 1
+        elif c == '/' and i + 1 < n and text[i + 1] == '/':
+            i += 2
+            while i < n and text[i] != '\n':
+                i += 1
+        elif c == '/' and i + 1 < n and text[i + 1] == '*':
+            i += 2
+            while i + 1 < n and not (text[i] == '*' and text[i + 1] == '/'):
+                i += 1
+            i += 2
+        else:
+            result.append(c)
+            i += 1
+    return ''.join(result)
+
+
+def _strip_trailing_commas(text: str) -> str:
+    """Remove trailing commas before ``]`` or ``}``.
+
+    Respects string boundaries so commas inside quoted values are
+    never modified.
+    """
+    result: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            result.append(c)
+            i += 1
+            while i < n:
+                sc = text[i]
+                result.append(sc)
+                if sc == '\\':
+                    i += 1
+                    if i < n:
+                        result.append(text[i])
+                elif sc == '"':
+                    break
+                i += 1
+            i += 1
+        elif c == ',':
+            j = i + 1
+            while j < n and text[j] in ' \t\r\n':
+                j += 1
+            if j < n and text[j] in ']}':
+                i = j
+            else:
+                result.append(c)
+                i += 1
+        else:
+            result.append(c)
+            i += 1
+    return ''.join(result)
+
+
+def _strip_jsonc(text: str) -> str:
+    """Remove comments and trailing commas from JSONC text.
+
+    Uses a two-pass approach: first strips all comments, then strips
+    trailing commas from the comment-free result. This correctly
+    handles cases where a comment sits between a trailing comma and
+    a closing bracket.
+    """
+    return _strip_trailing_commas(_strip_comments(text))
+
+
+def _has_jsonc_comments(text: str) -> bool:
+    """Return True if *text* contains ``//`` or ``/* */`` outside strings."""
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            i += 1
+            while i < n:
+                sc = text[i]
+                if sc == '\\':
+                    i += 2
+                    continue
+                if sc == '"':
+                    break
+                i += 1
+            i += 1
+        elif c == '/' and i + 1 < n and text[i + 1] in '/*':
+            return True
+        else:
+            i += 1
+    return False
+
+
+def warn_jsonc_comments(path: Path | None = None) -> None:
+    """Print a single warning if *path* contains JSONC comments."""
+    p = path or _default_settings_path()
+    try:
+        text = p.read_text(encoding="utf-8-sig")
+    except FileNotFoundError:
+        return
+    if _has_jsonc_comments(text):
+        print(
+            "WARNING: comments in settings.json will not be preserved.",
+            file=sys.stderr,
+        )
+
+
 def load_settings(path: Path | None = None) -> dict:
     """Read and parse settings.json.
+
+    Handles JSONC features (comments and trailing commas) used by
+    Windows Terminal.
 
     Raises FileNotFoundError if the file does not exist.
     Raises json.JSONDecodeError if the file is not valid JSON.
     """
     p = path or _default_settings_path()
     text = p.read_text(encoding="utf-8-sig")
-    return json.loads(text)
+    return json.loads(_strip_jsonc(text))
 
 
 def save_settings(settings: dict, path: Path | None = None) -> None:
-    """Write *settings* back to disk as pretty-printed UTF-8 JSON."""
+    """Write *settings* back to disk as pretty-printed UTF-8 JSON.
+
+    JSONC comments present in the original file are not preserved.
+    Call :func:`warn_jsonc_comments` once before a batch of writes
+    to alert the user.
+    """
     p = path or _default_settings_path()
     p.write_text(json.dumps(settings, indent=4), encoding="utf-8")
 
