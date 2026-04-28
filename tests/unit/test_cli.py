@@ -228,11 +228,11 @@ class TestAttachFunction:
         assert rc == 0
         mock_plain.assert_called_once_with("devbox", None)
 
-    def test_session_selected_attaches_with_peek(self):
+    def test_session_selected_attaches(self):
         mgr = self._mock_mgr(["main"])
         with (
             patch("wt_tmux_picker.cli.TmuxManager", return_value=mgr),
-            patch("wt_tmux_picker.cli.pick_session_with_preview", return_value="main"),
+            patch("wt_tmux_picker.cli.pick_session", return_value="main"),
             patch("wt_tmux_picker.cli._plain_ssh") as mock_plain,
         ):
             rc = _attach("devbox", None)
@@ -244,25 +244,13 @@ class TestAttachFunction:
         mgr = self._mock_mgr(["main"])
         with (
             patch("wt_tmux_picker.cli.TmuxManager", return_value=mgr),
-            patch("wt_tmux_picker.cli.pick_session_with_preview", return_value=None),
+            patch("wt_tmux_picker.cli.pick_session", return_value=None),
             patch("wt_tmux_picker.cli._plain_ssh") as mock_plain,
         ):
             rc = _attach("devbox", None)
         assert rc == 0
         mock_plain.assert_called_once()
         mgr.attach_session.assert_not_called()
-
-    def test_no_peek_uses_simple_picker(self):
-        mgr = self._mock_mgr(["main"])
-        with (
-            patch("wt_tmux_picker.cli.TmuxManager", return_value=mgr),
-            patch("wt_tmux_picker.cli.pick_session", return_value="main") as mock_pick,
-            patch("wt_tmux_picker.cli._plain_ssh"),
-        ):
-            rc = _attach("devbox", None, peek=False)
-        assert rc == 0
-        mock_pick.assert_called_once()
-        mgr.attach_session.assert_called_once_with("main")
 
     def test_with_user(self):
         mgr = self._mock_mgr([])
@@ -301,18 +289,3 @@ class TestMainEntrypoint:
         ):
             rc = main(["attach", "devbox"])
         assert rc == 0
-
-    def test_attach_no_peek_flag(self):
-        args = _build_parser().parse_args(["attach", "devbox", "--no-peek"])
-        assert args.no_peek is True
-
-    def test_attach_no_peek_via_main(self):
-        mgr = MagicMock()
-        mgr.list_sessions.return_value = ["s1"]
-        with (
-            patch("wt_tmux_picker.cli.TmuxManager", return_value=mgr),
-            patch("wt_tmux_picker.cli.pick_session", return_value="s1"),
-        ):
-            rc = main(["attach", "devbox", "--no-peek"])
-        assert rc == 0
-        mgr.attach_session.assert_called_once_with("s1")
