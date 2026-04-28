@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from wt_tmux_picker.tmux import capture_pane, has_fzf, has_tmux, list_sessions, session_info
+from wt_tmux_picker.tmux import has_fzf, has_tmux, list_sessions
 
 
 def _manager(*, available=True, sessions=None):
@@ -70,46 +70,4 @@ class TestListSessions:
     def test_passes_host_and_user(self):
         with patch("wt_tmux_picker.tmux.TmuxManager", return_value=_manager()) as mock_cls:
             list_sessions("devbox", "alice")
-        mock_cls.assert_called_once_with("devbox", "alice")
-
-
-class TestSessionInfo:
-    def test_returns_info(self):
-        info = {"name": "main", "windows": 2, "created": "now", "attached": False}
-        mgr = MagicMock()
-        mgr.session_info.return_value = info
-        with patch("wt_tmux_picker.tmux.TmuxManager", return_value=mgr):
-            result = session_info("devbox", name="main")
-        assert result == info
-        mgr.session_info.assert_called_once_with("main")
-
-    def test_passes_host_and_user(self):
-        mgr = MagicMock()
-        mgr.session_info.return_value = None
-        with patch("wt_tmux_picker.tmux.TmuxManager", return_value=mgr) as mock_cls:
-            session_info("devbox", "alice", name="work")
-        mock_cls.assert_called_once_with("devbox", "alice")
-
-
-class TestCapturePane:
-    def test_returns_content(self):
-        mgr = MagicMock()
-        mgr.capture_pane.return_value = "$ ls"
-        with patch("wt_tmux_picker.tmux.TmuxManager", return_value=mgr):
-            result = capture_pane("devbox", name="main")
-        assert result == "$ ls"
-        mgr.capture_pane.assert_called_once_with("main", 50)
-
-    def test_passes_lines(self):
-        mgr = MagicMock()
-        mgr.capture_pane.return_value = ""
-        with patch("wt_tmux_picker.tmux.TmuxManager", return_value=mgr):
-            capture_pane("devbox", name="main", lines=10)
-        mgr.capture_pane.assert_called_once_with("main", 10)
-
-    def test_passes_host_and_user(self):
-        mgr = MagicMock()
-        mgr.capture_pane.return_value = ""
-        with patch("wt_tmux_picker.tmux.TmuxManager", return_value=mgr) as mock_cls:
-            capture_pane("devbox", "alice", name="main")
         mock_cls.assert_called_once_with("devbox", "alice")

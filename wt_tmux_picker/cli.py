@@ -12,7 +12,7 @@ from tmux_manager import TmuxManager
 from . import __version__
 from .ssh_config import parse_ssh_hosts
 from .tmux import has_fzf, has_tmux
-from .tui import pick_profiles, pick_session, pick_session_with_preview
+from .tui import pick_profiles, pick_session
 from .windows_terminal import (
     add_profile,
     list_tmux_profiles,
@@ -102,7 +102,7 @@ def _plain_ssh(host: str, user: str | None) -> None:
     subprocess.run(["ssh", target])
 
 
-def _attach(host: str, user: str | None, *, peek: bool = True) -> int:
+def _attach(host: str, user: str | None) -> int:
     mgr = TmuxManager(host, user)
     sessions = mgr.list_sessions()
 
@@ -110,15 +110,7 @@ def _attach(host: str, user: str | None, *, peek: bool = True) -> int:
         _plain_ssh(host, user)
         return 0
 
-    if peek:
-        selected = pick_session_with_preview(
-            sessions,
-            host,
-            get_info=lambda s: mgr.session_info(s),
-            get_pane=lambda s: mgr.capture_pane(s, 50),
-        )
-    else:
-        selected = pick_session(sessions, host)
+    selected = pick_session(sessions, host)
     if selected:
         mgr.attach_session(selected)
     else:
@@ -167,11 +159,6 @@ def _build_parser() -> argparse.ArgumentParser:
     attach_p = sub.add_parser("attach", help="Pick a tmux session and attach")
     attach_p.add_argument("host", help="SSH host to connect to")
     attach_p.add_argument("--user", help="SSH username")
-    attach_p.add_argument(
-        "--no-peek",
-        action="store_true",
-        help="Disable preview pane (use simple session picker)",
-    )
 
     return parser
 
@@ -192,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
             hosts=args.hosts or None,
         )
     else:
-        return _attach(host=args.host, user=args.user, peek=not args.no_peek)
+        return _attach(host=args.host, user=args.user)
 
 
 if __name__ == "__main__":  # pragma: no cover
