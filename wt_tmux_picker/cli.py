@@ -9,7 +9,6 @@ from pathlib import Path
 
 from tmux_manager import TmuxManager
 
-from . import __version__
 from .ssh_config import parse_ssh_hosts
 from .tmux import has_fzf, has_tmux
 from .tui import pick_profiles, pick_session
@@ -122,11 +121,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="wt-tmux-picker",
         description="Manage Windows Terminal tmux picker profiles.",
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"%(prog)s {__version__}",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

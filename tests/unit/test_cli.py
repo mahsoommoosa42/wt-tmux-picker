@@ -61,12 +61,6 @@ class TestBuildParser:
         with pytest.raises(SystemExit):
             _build_parser().parse_args([])
 
-    def test_version_flag(self, capsys):
-        with pytest.raises(SystemExit):
-            _build_parser().parse_args(["--version"])
-        out = capsys.readouterr().out
-        assert "wt-tmux-picker" in out
-
 
 class TestSetupFunction:
     def _both_found(self, *_args, **_kwargs):

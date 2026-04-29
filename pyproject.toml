@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wt-tmux-picker"
-version = "1.0.2"
+version = "0.0.0"
 description = "Windows Terminal + tmux session picker via SSH"
 readme = "README.md"
 license = {text = "GPL-3.0-only"}
@@ -21,7 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "prompt_toolkit",
-    "tmux-manager>=1.0.0",
+    "tmux-manager",
 ]
 
 [project.urls]
