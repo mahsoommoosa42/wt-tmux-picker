@@ -331,6 +331,6 @@ This eliminates all password prompts across all subcommands.
 ## References
 
 - [Windows Terminal Documentation](https://docs.microsoft.com/en-us/windows/terminal/)
-- [Textual TUI Framework](https://textual.textualize.io/)
+- [Prompt Toolkit](https://python-prompt-toolkit.readthedocs.io/)
 - [Tmux Manager Library](https://github.com/mahsoommoosa42/tmux-manager)
 - [UUID5 for Stable IDs](https://docs.python.org/3/library/uuid.html#uuid.uuid5)
