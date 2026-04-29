@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from textual.widgets import Input, OptionList, SelectionList, Static
+from textual.widgets import Button, Input, OptionList, SelectionList, Static
 
 from wt_tmux_picker.host_info import HostInfo
 from wt_tmux_picker.tui import (
@@ -386,6 +386,29 @@ class TestHostPickerAsync:
             assert len(app.screen_stack) > 1
 
 
+class TestHostPickerArrowNav:
+    @pytest.mark.asyncio
+    async def test_left_right_arrows_between_buttons(self):
+        e = HostInfo(name="a", platform="Linux", has_tmux=True, has_fzf=True)
+        app = HostPicker([e])
+        async with app.run_test() as pilot:
+            app.query_one("#add-host", Button).focus()
+            await pilot.press("right")
+            assert app.focused.id == "confirm"
+            await pilot.press("left")
+            assert app.focused.id == "add-host"
+
+    @pytest.mark.asyncio
+    async def test_arrows_ignored_when_selection_list_focused(self):
+        e = HostInfo(name="a", platform="Linux", has_tmux=True, has_fzf=True)
+        app = HostPicker([e])
+        async with app.run_test() as pilot:
+            sl = app.query_one("#host-list", SelectionList)
+            sl.focus()
+            await pilot.press("left")
+            assert sl.has_focus
+
+
 class TestManualHostScreenAsync:
     @pytest.mark.asyncio
     async def test_compose_renders_dialog(self):
@@ -396,3 +419,40 @@ class TestManualHostScreenAsync:
             screen = app.screen_stack[-1]
             hostname_input = screen.query_one("#hostname", Input)
             assert hostname_input is not None
+
+    @pytest.mark.asyncio
+    async def test_up_down_arrows_between_inputs(self):
+        app = HostPicker([HostInfo(name="h", has_tmux=True, has_fzf=True)])
+        async with app.run_test() as pilot:
+            app.push_screen(ManualHostScreen(), callback=app._on_manual_host)
+            await pilot.pause()
+            screen = app.screen_stack[-1]
+            screen.query_one("#hostname", Input).focus()
+            await pilot.press("down")
+            assert screen.focused.id == "username"
+            await pilot.press("up")
+            assert screen.focused.id == "hostname"
+
+    @pytest.mark.asyncio
+    async def test_left_right_arrows_between_buttons(self):
+        app = HostPicker([HostInfo(name="h", has_tmux=True, has_fzf=True)])
+        async with app.run_test() as pilot:
+            app.push_screen(ManualHostScreen(), callback=app._on_manual_host)
+            await pilot.pause()
+            screen = app.screen_stack[-1]
+            screen.query_one("#add", Button).focus()
+            await pilot.press("right")
+            assert screen.focused.id == "cancel-dialog"
+            await pilot.press("left")
+            assert screen.focused.id == "add"
+
+    @pytest.mark.asyncio
+    async def test_unrelated_key_on_input_not_intercepted(self):
+        app = HostPicker([HostInfo(name="h", has_tmux=True, has_fzf=True)])
+        async with app.run_test() as pilot:
+            app.push_screen(ManualHostScreen(), callback=app._on_manual_host)
+            await pilot.pause()
+            screen = app.screen_stack[-1]
+            screen.query_one("#hostname", Input).focus()
+            await pilot.press("left")
+            assert screen.focused.id == "hostname"

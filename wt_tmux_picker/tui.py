@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Header, Input, OptionList, SelectionList, Static
 from textual.widgets.option_list import Option
@@ -85,6 +86,23 @@ class ManualHostScreen(ModalScreen[tuple[str, str | None] | None]):
     def on_mount(self) -> None:
         self.query_one("#hostname", Input).focus()
 
+    def on_key(self, event: Key) -> None:
+        focused = self.focused
+        if isinstance(focused, Input) and event.key in ("up", "down"):
+            event.prevent_default()
+            event.stop()
+            if event.key == "down":
+                self.focus_next()
+            else:
+                self.focus_previous()
+        elif isinstance(focused, Button) and event.key in ("left", "right"):
+            event.prevent_default()
+            event.stop()
+            if event.key == "right":
+                self.focus_next()
+            else:
+                self.focus_previous()
+
     def action_cancel(self) -> None:
         self.dismiss(None)
 
@@ -152,6 +170,15 @@ class HostPicker(App[list[HostInfo]]):
     def on_mount(self) -> None:
         self._refresh_selection_list()
         self.query_one("#host-list", SelectionList).focus()
+
+    def on_key(self, event: Key) -> None:
+        if isinstance(self.focused, Button) and event.key in ("left", "right"):
+            event.prevent_default()
+            event.stop()
+            if event.key == "right":
+                self.screen.focus_next()
+            else:
+                self.screen.focus_previous()
 
     # -- actions ------------------------------------------------------------
 
