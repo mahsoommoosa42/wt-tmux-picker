@@ -271,8 +271,8 @@ wheels = [
 
 [[package]]
 name = "tmux-manager"
-version = "1.0.2"
-source = { git = "https://github.com/mahsoommoosa42/tmux-manager.git?branch=main#128981087bd877a81258c5df8d94e52fc3ec8e5f" }
+version = "0.0.0"
+source = { git = "https://github.com/mahsoommoosa42/tmux-manager.git?rev=b1f03a8#b1f03a8e5c0e57868d792e06505768963f3ac72b" }
 dependencies = [
     { name = "paramiko" },
 ]
@@ -306,6 +306,6 @@ requires-dist = [
     { name = "prompt-toolkit" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "tmux-manager", git = "https://github.com/mahsoommoosa42/tmux-manager.git?branch=main" },
+    { name = "tmux-manager", git = "https://github.com/mahsoommoosa42/tmux-manager.git?rev=b1f03a8" },
 ]
 provides-extras = ["dev"]

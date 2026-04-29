@@ -36,7 +36,7 @@ dev = ["pytest", "pytest-cov"]
 wt-tmux-picker = "wt_tmux_picker.cli:main"
 
 [tool.uv.sources]
-tmux-manager = {git = "https://github.com/mahsoommoosa42/tmux-manager.git", branch = "main"}
+tmux-manager = {git = "https://github.com/mahsoommoosa42/tmux-manager.git", rev = "b1f03a8"}
 
 [tool.setuptools.packages.find]
 where = ["."]
