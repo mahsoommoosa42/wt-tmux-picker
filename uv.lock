@@ -116,7 +116,7 @@ wheels = [
 [[package]]
 name = "tmux-manager"
 version = "0.0.0"
-source = { git = "https://github.com/mahsoommoosa42/tmux-manager.git?rev=fbf44e8#fbf44e8bf9b0e45a7620cb29b986eab6adaa7556" }
+source = { git = "https://github.com/mahsoommoosa42/tmux-manager.git?branch=main#1ebad6c87e9a26be64b72889e552624ab0b803e1" }
 
 [[package]]
 name = "wcwidth"
@@ -147,6 +147,6 @@ requires-dist = [
     { name = "prompt-toolkit" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "tmux-manager", git = "https://github.com/mahsoommoosa42/tmux-manager.git?rev=fbf44e8" },
+    { name = "tmux-manager", git = "https://github.com/mahsoommoosa42/tmux-manager.git?branch=main" },
 ]
 provides-extras = ["dev"]
