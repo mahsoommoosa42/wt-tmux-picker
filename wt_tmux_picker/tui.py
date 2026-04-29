@@ -29,11 +29,14 @@ class SessionPicker(App[str | None]):
         yield Header()
         yield Static(
             f"tmux sessions on {self.host}\n"
-            "\u2191/\u2193 to move, Enter to select, Escape for plain SSH",
+            "\u2191/\u2193 arrow keys to move, Enter to select, Escape for plain SSH",
             id="info",
         )
         yield OptionList(*[Option(s, id=s) for s in self.sessions])
         yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one(OptionList).focus()
 
     def on_option_list_option_selected(
         self, event: OptionList.OptionSelected
@@ -78,6 +81,9 @@ class ManualHostScreen(ModalScreen[tuple[str, str | None] | None]):
             with Horizontal(id="btn-bar"):
                 yield Button("Add", variant="primary", id="add")
                 yield Button("Cancel", id="cancel-dialog")
+
+    def on_mount(self) -> None:
+        self.query_one("#hostname", Input).focus()
 
     def action_cancel(self) -> None:
         self.dismiss(None)
@@ -131,7 +137,7 @@ class HostPicker(App[list[HostInfo]]):
         yield Header()
         yield Static(
             "Select SSH hosts to set up\n"
-            "Space to toggle, [v] cycle view, Escape to cancel",
+            "\u2191/\u2193 to move, Space to toggle, [v] cycle view, Escape to cancel",
             id="info",
         )
         yield Static(f"View: {_VIEW_NAMES[0]}", id="view-label")
@@ -145,6 +151,7 @@ class HostPicker(App[list[HostInfo]]):
 
     def on_mount(self) -> None:
         self._refresh_selection_list()
+        self.query_one("#host-list", SelectionList).focus()
 
     # -- actions ------------------------------------------------------------
 
@@ -227,10 +234,13 @@ class ProfilePicker(App[list[str]]):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Static("Space to toggle, Enter to confirm", id="info")
+        yield Static("↑/↓ to move, Space to toggle, Enter to confirm", id="info")
         yield SelectionList(*[(p, p) for p in self.profiles])
         yield Button("Confirm", id="confirm")
         yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one(SelectionList).focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         sel = self.query_one(SelectionList)

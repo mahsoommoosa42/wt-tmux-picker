@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from textual.widgets import Input, SelectionList, Static
+from textual.widgets import Input, OptionList, SelectionList, Static
 
 from wt_tmux_picker.host_info import HostInfo
 from wt_tmux_picker.tui import (
@@ -312,6 +312,24 @@ class TestPickProfiles:
 # ---------------------------------------------------------------------------
 # Async Textual tests (run_test) for compose / mount / button coverage
 # ---------------------------------------------------------------------------
+
+
+class TestSessionPickerAsync:
+    @pytest.mark.asyncio
+    async def test_on_mount_focuses_option_list(self):
+        app = SessionPicker(["main", "work"], "devbox")
+        async with app.run_test() as pilot:
+            ol = app.query_one(OptionList)
+            assert ol.has_focus
+
+
+class TestProfilePickerAsync:
+    @pytest.mark.asyncio
+    async def test_on_mount_focuses_selection_list(self):
+        app = ProfilePicker(["a tmux", "b tmux"])
+        async with app.run_test() as pilot:
+            sl = app.query_one(SelectionList)
+            assert sl.has_focus
 
 
 class TestHostPickerAsync:
