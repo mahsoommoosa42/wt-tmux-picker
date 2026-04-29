@@ -39,23 +39,53 @@ class TestSessionPicker:
 
 
 class TestHostPicker:
-    def test_stores_hosts(self):
-        app = HostPicker(["alpha", "beta"])
-        assert app.hosts == ["alpha", "beta"]
+    def test_stores_eligible_and_unavailable(self):
+        app = HostPicker(["alpha"], [("beta", "tmux not found")])
+        assert app.eligible == ["alpha"]
+        assert app.unavailable == [("beta", "tmux not found")]
 
-    def test_compose_yields_five_widgets(self):
+    def test_unavailable_defaults_to_empty(self):
+        app = HostPicker(["alpha"])
+        assert app.unavailable == []
+
+    def test_compose_eligible_only(self):
         app = HostPicker(["alpha"])
         widgets = list(app.compose())
+        # Header, info, SelectionList, Confirm, Footer
+        assert len(widgets) == 5
+
+    def test_compose_with_unavailable(self):
+        app = HostPicker(["alpha"], [("beta", "tmux not found")])
+        widgets = list(app.compose())
+        # Header, info, SelectionList, unavailable Static, Confirm, Footer
+        assert len(widgets) == 6
+
+    def test_compose_no_eligible(self):
+        app = HostPicker([], [("beta", "tmux not found")])
+        widgets = list(app.compose())
+        # Header, info, unavailable Static, Confirm, Footer
         assert len(widgets) == 5
 
     def test_button_pressed_exits_with_selected(self):
         app = HostPicker(["alpha", "beta"])
         mock_sel = MagicMock()
         mock_sel.selected = ["alpha"]
-        app.query_one = MagicMock(return_value=mock_sel)
+        mock_nodes = MagicMock()
+        mock_nodes.__bool__ = lambda self: True
+        mock_nodes.first.return_value = mock_sel
+        app.query = MagicMock(return_value=mock_nodes)
         app.exit = MagicMock()
         app.on_button_pressed(MagicMock())
         app.exit.assert_called_once_with(["alpha"])
+
+    def test_button_pressed_no_eligible_exits_empty(self):
+        app = HostPicker([], [("beta", "tmux not found")])
+        mock_nodes = MagicMock()
+        mock_nodes.__bool__ = lambda self: False
+        app.query = MagicMock(return_value=mock_nodes)
+        app.exit = MagicMock()
+        app.on_button_pressed(MagicMock())
+        app.exit.assert_called_once_with([])
 
     def test_cancel_exits_empty_list(self):
         app = HostPicker(["alpha"])
@@ -111,7 +141,15 @@ class TestPickHosts:
             MockApp.return_value.run.return_value = ["alpha", "beta"]
             result = pick_hosts(["alpha", "beta", "gamma"])
         assert result == ["alpha", "beta"]
-        MockApp.assert_called_once_with(["alpha", "beta", "gamma"])
+        MockApp.assert_called_once_with(["alpha", "beta", "gamma"], None)
+
+    def test_passes_unavailable(self):
+        unavail = [("bad", "tmux not found")]
+        with patch("wt_tmux_picker.tui.HostPicker") as MockApp:
+            MockApp.return_value.run.return_value = ["alpha"]
+            result = pick_hosts(["alpha"], unavail)
+        assert result == ["alpha"]
+        MockApp.assert_called_once_with(["alpha"], unavail)
 
     def test_returns_empty_when_cancelled(self):
         with patch("wt_tmux_picker.tui.HostPicker") as MockApp:

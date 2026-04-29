@@ -63,17 +63,14 @@ class TestBuildParser:
 
 
 class TestSetupFunction:
-    def _both_found(self, *_args, **_kwargs):
-        return True
-
     def test_happy_path_adds_profile(self, tmp_path):
         cfg = _write_ssh_config(tmp_path, ["host1"])
         wt = _write_wt_settings(tmp_path)
 
         with (
-            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", return_value=True),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
         ):
             rc = _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
 
@@ -92,39 +89,55 @@ class TestSetupFunction:
         assert rc == 0
         assert "No hosts" in capsys.readouterr().out
 
-    def test_host_without_tmux_skipped(self, tmp_path, capsys):
+    def test_host_without_tmux_passed_as_unavailable(self, tmp_path):
         cfg = _write_ssh_config(tmp_path, ["host1"])
         wt = _write_wt_settings(tmp_path)
 
         with (
-            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=False),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=[]) as mock_pick,
         ):
             _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
 
-        assert "tmux not found" in capsys.readouterr().out
+        mock_pick.assert_called_once_with([], [("host1", "tmux not found")])
 
-    def test_host_without_fzf_skipped(self, tmp_path, capsys):
+    def test_host_without_fzf_passed_as_unavailable(self, tmp_path):
         cfg = _write_ssh_config(tmp_path, ["host1"])
         wt = _write_wt_settings(tmp_path)
 
         with (
-            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", return_value=False),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=[]) as mock_pick,
         ):
             _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
 
-        assert "fzf not found" in capsys.readouterr().out
+        mock_pick.assert_called_once_with([], [("host1", "fzf not found")])
+
+    def test_mixed_eligible_and_unavailable(self, tmp_path):
+        cfg = _write_ssh_config(tmp_path, ["good", "bad"])
+        wt = _write_wt_settings(tmp_path)
+
+        def fake_has_tmux(host, user=None, *, dry_run=False):
+            return host == "good"
+
+        with (
+            patch("wt_tmux_picker.cli.has_tmux", side_effect=fake_has_tmux),
+            patch("wt_tmux_picker.cli.has_fzf", return_value=True),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["good"]) as mock_pick,
+        ):
+            _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
+
+        mock_pick.assert_called_once_with(["good"], [("bad", "tmux not found")])
 
     def test_dry_run_prints_would_add(self, tmp_path, capsys):
         cfg = _write_ssh_config(tmp_path, ["host1"])
         wt = _write_wt_settings(tmp_path)
 
         with (
-            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", return_value=True),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
         ):
             _setup(user=None, ssh_config=cfg, dry_run=True, settings_path=wt)
 
@@ -138,9 +151,9 @@ class TestSetupFunction:
         wt = _write_wt_settings(tmp_path, [{"name": "host1 tmux"}])
 
         with (
-            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", return_value=True),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
         ):
             _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
 
@@ -149,7 +162,11 @@ class TestSetupFunction:
     def test_no_hosts_selected_returns_0(self, tmp_path, capsys):
         cfg = _write_ssh_config(tmp_path, ["host1"])
 
-        with patch("wt_tmux_picker.cli.pick_hosts", return_value=[]):
+        with (
+            patch("wt_tmux_picker.cli.has_tmux", return_value=True),
+            patch("wt_tmux_picker.cli.has_fzf", return_value=True),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=[]),
+        ):
             rc = _setup(user=None, ssh_config=cfg, dry_run=False)
 
         assert rc == 0

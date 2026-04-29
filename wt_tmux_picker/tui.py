@@ -46,13 +46,19 @@ class HostPicker(App[list[str]]):
     CSS = """
     #info { padding: 1 2; color: $text-muted; }
     SelectionList { height: 1fr; margin: 0 2; }
+    #unavailable { padding: 1 2; color: $error; }
     #confirm { dock: bottom; margin: 1 2; }
     """
     BINDINGS = [("escape", "cancel", "Cancel")]
 
-    def __init__(self, hosts: list[str]) -> None:
+    def __init__(
+        self,
+        eligible: list[str],
+        unavailable: list[tuple[str, str]] | None = None,
+    ) -> None:
         super().__init__()
-        self.hosts = hosts
+        self.eligible = eligible
+        self.unavailable = unavailable or []
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -61,13 +67,22 @@ class HostPicker(App[list[str]]):
             "Space to toggle, Enter to confirm, Escape to cancel",
             id="info",
         )
-        yield SelectionList(*[(h, h, True) for h in self.hosts])
+        if self.eligible:
+            yield SelectionList(*[(h, h, True) for h in self.eligible])
+        if self.unavailable:
+            lines = "\n".join(
+                f"  {host} — {reason}" for host, reason in self.unavailable
+            )
+            yield Static(f"Unavailable:\n{lines}", id="unavailable")
         yield Button("Confirm", id="confirm")
         yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        sel = self.query_one(SelectionList)
-        self.exit(list(sel.selected))
+        nodes = self.query(SelectionList)
+        if nodes:
+            self.exit(list(nodes.first().selected))
+        else:
+            self.exit([])
 
     def action_cancel(self) -> None:
         self.exit([])
@@ -108,9 +123,12 @@ def pick_session(sessions: list[str], host: str) -> str | None:
     return app.run()
 
 
-def pick_hosts(hosts: list[str]) -> list[str]:
+def pick_hosts(
+    eligible: list[str],
+    unavailable: list[tuple[str, str]] | None = None,
+) -> list[str]:
     """Show a checklist of SSH hosts for setup; return checked names."""
-    result = HostPicker(hosts).run()
+    result = HostPicker(eligible, unavailable).run()
     return result or []
 
 

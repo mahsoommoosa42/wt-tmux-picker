@@ -53,7 +53,7 @@ class TestSetupFlow:
         assert "wt-tmux-picker attach" in profile["commandline"]
         assert "myhost" in profile["commandline"]
 
-    def test_hosts_without_tmux_not_added(self, tmp_path):
+    def test_hosts_without_tmux_not_selectable(self, tmp_path):
         cfg = _make_ssh_config(tmp_path, ["good", "bad"])
         wt = _make_wt_settings(tmp_path)
 
@@ -61,18 +61,19 @@ class TestSetupFlow:
             return host == "good"
 
         with (
-            patch("wt_tmux_picker.cli.pick_hosts", return_value=["good", "bad"]),
             patch("wt_tmux_picker.cli.has_tmux", side_effect=fake_has_tmux),
             patch("wt_tmux_picker.cli.has_fzf", return_value=True),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["good"]) as mock_pick,
         ):
             _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
 
+        mock_pick.assert_called_once_with(["good"], [("bad", "tmux not found")])
         settings = json.loads(wt.read_text(encoding="utf-8"))
         names = {p["name"] for p in settings["profiles"]["list"]}
         assert "good tmux" in names
         assert "bad tmux" not in names
 
-    def test_hosts_without_fzf_not_added(self, tmp_path):
+    def test_hosts_without_fzf_not_selectable(self, tmp_path):
         cfg = _make_ssh_config(tmp_path, ["good", "bad"])
         wt = _make_wt_settings(tmp_path)
 
@@ -80,12 +81,13 @@ class TestSetupFlow:
             return host == "good"
 
         with (
-            patch("wt_tmux_picker.cli.pick_hosts", return_value=["good", "bad"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", side_effect=fake_has_fzf),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["good"]) as mock_pick,
         ):
             _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
 
+        mock_pick.assert_called_once_with(["good"], [("bad", "fzf not found")])
         settings = json.loads(wt.read_text(encoding="utf-8"))
         names = {p["name"] for p in settings["profiles"]["list"]}
         assert "good tmux" in names

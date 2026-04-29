@@ -36,7 +36,17 @@ def _setup(
         print("No hosts found in SSH config.")
         return 0
 
-    selected = pick_hosts(hosts)
+    eligible: list[str] = []
+    unavailable: list[tuple[str, str]] = []
+    for host in hosts:
+        if not has_tmux(host, user, dry_run=dry_run):
+            unavailable.append((host, "tmux not found"))
+        elif not has_fzf(host, user, dry_run=dry_run):
+            unavailable.append((host, "fzf not found"))
+        else:
+            eligible.append(host)
+
+    selected = pick_hosts(eligible, unavailable)
     if not selected:
         print("No hosts selected.")
         return 0
@@ -45,15 +55,6 @@ def _setup(
         warn_jsonc_comments(settings_path)
 
     for host in selected:
-        if not has_tmux(host, user, dry_run=dry_run):
-            print(f"Checking {host} ...  tmux not found (skipped)")
-            continue
-        if not has_fzf(host, user, dry_run=dry_run):
-            print(f"Checking {host} ...  fzf not found (skipped)")
-            continue
-
-        print(f"Checking {host} ...  tmux found, fzf found")
-
         if dry_run:
             print(f'[dry-run] Would add profile: "{host} tmux"')
             continue
