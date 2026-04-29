@@ -227,10 +227,15 @@ class HostPicker(App[list[HostInfo]]):
         sl = self.query_one("#host-list", SelectionList)
         selected: set[str] = set(sl.selected)
         first_load = sl.option_count == 0
+        known: set[str] = {sl.get_option_at_index(i).value
+                           for i in range(sl.option_count)}
         sl.clear_options()
         for info in self._eligible + self._manual:
             label = info.label(self._view)
-            checked = info.name in selected if not first_load else True
+            if first_load or info.name not in known:
+                checked = True
+            else:
+                checked = info.name in selected
             sl.add_option((label, info.name, checked))
 
     def _unavailable_text(self) -> str:
