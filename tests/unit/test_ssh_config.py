@@ -2,7 +2,7 @@
 
 import pytest
 from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import patch
 
 from wt_tmux_picker.ssh_config import parse_ssh_hosts
 
