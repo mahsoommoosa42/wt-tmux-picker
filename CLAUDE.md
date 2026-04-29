@@ -274,11 +274,43 @@ This allows:
 - Safe for idempotent operations (run setup multiple times)
 - Standard approach for stable UUIDs
 
+## Windows Platform Restrictions
+
+This tool targets Windows exclusively (Windows Terminal integration), but
+the underlying `tmux-manager` library has platform-specific SSH behavior:
+
+| Concern | Behavior on Windows |
+|---|---|
+| SSH ControlMaster | Not supported by Win32-OpenSSH — each SSH operation spawns a fresh process |
+| Password auth | Prompts once **per SSH call** (setup checks each host, attach checks + attaches) |
+| `connect()` on TmuxManager | Validates connectivity only — does not reduce password prompts |
+| Recommended auth | SSH key-based (`IdentityFile` in `~/.ssh/config`) to avoid repeated prompts |
+
+### Impact on subcommands
+
+- **`setup`**: Checks `tmux` and `fzf` per host — 2 SSH calls per host, each may prompt for password with password auth
+- **`attach`**: Calls `list_sessions()` then `attach_session()` — 2 SSH calls, each may prompt
+- **`cleanup`**: Only reads local Windows Terminal settings.json — no SSH calls
+
+### Mitigation
+
+Configure SSH key-based auth for all managed hosts:
+
+```
+# ~/.ssh/config
+Host devbox
+    HostName 192.168.1.10
+    User alice
+    IdentityFile ~/.ssh/id_ed25519
+```
+
+This eliminates all password prompts across all subcommands.
+
 ## Known Limitations and Future Work
 
 **Current Limitations:**
 - Windows only (hardcoded Windows Terminal path)
-- SSH key-based auth only (no password prompts)
+- Password auth prompts once per SSH operation (see Windows Platform Restrictions above)
 - No session filtering or sorting
 - No customization of profile appearance
 
@@ -299,6 +331,6 @@ This allows:
 ## References
 
 - [Windows Terminal Documentation](https://docs.microsoft.com/en-us/windows/terminal/)
-- [Prompt Toolkit](https://python-prompt-toolkit.readthedocs.io/)
+- [Textual TUI Framework](https://textual.textualize.io/)
 - [Tmux Manager Library](https://github.com/mahsoommoosa42/tmux-manager)
 - [UUID5 for Stable IDs](https://docs.python.org/3/library/uuid.html#uuid.uuid5)
