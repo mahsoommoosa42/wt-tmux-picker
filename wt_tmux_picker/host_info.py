@@ -129,10 +129,9 @@ def _probe_ssh(
     """
     target = _ssh_target(host, user)
     cmd = (
-        'printf "%s\\n" '
-        '"$(uname -s)" '
-        '"$(command -v tmux >/dev/null 2>&1 && echo yes || echo no)" '
-        '"$(command -v fzf >/dev/null 2>&1 && echo yes || echo no)"'
+        "uname -s;"
+        " command -v tmux >/dev/null 2>&1 && echo yes || echo no;"
+        " command -v fzf >/dev/null 2>&1 && echo yes || echo no"
     )
     args = ["ssh", "-o", "ConnectTimeout=5"]
     if identity_file:
