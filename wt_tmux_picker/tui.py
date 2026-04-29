@@ -40,6 +40,39 @@ class SessionPicker(App[str | None]):
         self.exit(None)
 
 
+class HostPicker(App[list[str]]):
+    """Multi-select picker for SSH hosts during setup."""
+
+    CSS = """
+    #info { padding: 1 2; color: $text-muted; }
+    SelectionList { height: 1fr; margin: 0 2; }
+    #confirm { dock: bottom; margin: 1 2; }
+    """
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
+    def __init__(self, hosts: list[str]) -> None:
+        super().__init__()
+        self.hosts = hosts
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Static(
+            "Select SSH hosts to set up\n"
+            "Space to toggle, Enter to confirm, Escape to cancel",
+            id="info",
+        )
+        yield SelectionList(*[(h, h, True) for h in self.hosts])
+        yield Button("Confirm", id="confirm")
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        sel = self.query_one(SelectionList)
+        self.exit(list(sel.selected))
+
+    def action_cancel(self) -> None:
+        self.exit([])
+
+
 class ProfilePicker(App[list[str]]):
     """Multi-select picker for WT profile removal."""
 
@@ -73,6 +106,12 @@ def pick_session(sessions: list[str], host: str) -> str | None:
     """Show a list of tmux session names; return chosen name or None."""
     app = SessionPicker(sessions, host)
     return app.run()
+
+
+def pick_hosts(hosts: list[str]) -> list[str]:
+    """Show a checklist of SSH hosts for setup; return checked names."""
+    result = HostPicker(hosts).run()
+    return result or []
 
 
 def pick_profiles(profiles: list[str]) -> list[str]:

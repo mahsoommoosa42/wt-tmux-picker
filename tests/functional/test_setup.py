@@ -25,6 +25,7 @@ class TestSetupFlow:
         wt = _make_wt_settings(tmp_path)
 
         with (
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["alpha", "beta"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", return_value=True),
         ):
@@ -41,6 +42,7 @@ class TestSetupFlow:
         wt = _make_wt_settings(tmp_path)
 
         with (
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["myhost"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", return_value=True),
         ):
@@ -59,6 +61,7 @@ class TestSetupFlow:
             return host == "good"
 
         with (
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["good", "bad"]),
             patch("wt_tmux_picker.cli.has_tmux", side_effect=fake_has_tmux),
             patch("wt_tmux_picker.cli.has_fzf", return_value=True),
         ):
@@ -77,6 +80,7 @@ class TestSetupFlow:
             return host == "good"
 
         with (
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["good", "bad"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", side_effect=fake_has_fzf),
         ):
@@ -93,6 +97,7 @@ class TestSetupFlow:
         original = wt.read_text(encoding="utf-8")
 
         with (
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["alpha"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", return_value=True),
         ):
@@ -105,6 +110,7 @@ class TestSetupFlow:
         wt = _make_wt_settings(tmp_path)
 
         with (
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["myhost"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", return_value=True),
         ):

@@ -3,8 +3,10 @@
 from unittest.mock import MagicMock, patch
 
 from wt_tmux_picker.tui import (
+    HostPicker,
     ProfilePicker,
     SessionPicker,
+    pick_hosts,
     pick_profiles,
     pick_session,
 )
@@ -34,6 +36,32 @@ class TestSessionPicker:
         app.exit = MagicMock()
         app.action_cancel()
         app.exit.assert_called_once_with(None)
+
+
+class TestHostPicker:
+    def test_stores_hosts(self):
+        app = HostPicker(["alpha", "beta"])
+        assert app.hosts == ["alpha", "beta"]
+
+    def test_compose_yields_five_widgets(self):
+        app = HostPicker(["alpha"])
+        widgets = list(app.compose())
+        assert len(widgets) == 5
+
+    def test_button_pressed_exits_with_selected(self):
+        app = HostPicker(["alpha", "beta"])
+        mock_sel = MagicMock()
+        mock_sel.selected = ["alpha"]
+        app.query_one = MagicMock(return_value=mock_sel)
+        app.exit = MagicMock()
+        app.on_button_pressed(MagicMock())
+        app.exit.assert_called_once_with(["alpha"])
+
+    def test_cancel_exits_empty_list(self):
+        app = HostPicker(["alpha"])
+        app.exit = MagicMock()
+        app.action_cancel()
+        app.exit.assert_called_once_with([])
 
 
 class TestProfilePicker:
@@ -75,6 +103,27 @@ class TestPickSession:
             MockApp.return_value.run.return_value = None
             result = pick_session(["main"], "devbox")
         assert result is None
+
+
+class TestPickHosts:
+    def test_returns_selected_hosts(self):
+        with patch("wt_tmux_picker.tui.HostPicker") as MockApp:
+            MockApp.return_value.run.return_value = ["alpha", "beta"]
+            result = pick_hosts(["alpha", "beta", "gamma"])
+        assert result == ["alpha", "beta"]
+        MockApp.assert_called_once_with(["alpha", "beta", "gamma"])
+
+    def test_returns_empty_when_cancelled(self):
+        with patch("wt_tmux_picker.tui.HostPicker") as MockApp:
+            MockApp.return_value.run.return_value = None
+            result = pick_hosts(["alpha"])
+        assert result == []
+
+    def test_returns_empty_when_none_selected(self):
+        with patch("wt_tmux_picker.tui.HostPicker") as MockApp:
+            MockApp.return_value.run.return_value = []
+            result = pick_hosts(["alpha"])
+        assert result == []
 
 
 class TestPickProfiles:

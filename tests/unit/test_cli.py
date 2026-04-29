@@ -71,6 +71,7 @@ class TestSetupFunction:
         wt = _write_wt_settings(tmp_path)
 
         with (
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", return_value=True),
         ):
@@ -95,7 +96,10 @@ class TestSetupFunction:
         cfg = _write_ssh_config(tmp_path, ["host1"])
         wt = _write_wt_settings(tmp_path)
 
-        with patch("wt_tmux_picker.cli.has_tmux", return_value=False):
+        with (
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
+            patch("wt_tmux_picker.cli.has_tmux", return_value=False),
+        ):
             _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
 
         assert "tmux not found" in capsys.readouterr().out
@@ -105,6 +109,7 @@ class TestSetupFunction:
         wt = _write_wt_settings(tmp_path)
 
         with (
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", return_value=False),
         ):
@@ -117,6 +122,7 @@ class TestSetupFunction:
         wt = _write_wt_settings(tmp_path)
 
         with (
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", return_value=True),
         ):
@@ -132,12 +138,22 @@ class TestSetupFunction:
         wt = _write_wt_settings(tmp_path, [{"name": "host1 tmux"}])
 
         with (
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", return_value=True),
         ):
             _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
 
         assert "already exists" in capsys.readouterr().out
+
+    def test_no_hosts_selected_returns_0(self, tmp_path, capsys):
+        cfg = _write_ssh_config(tmp_path, ["host1"])
+
+        with patch("wt_tmux_picker.cli.pick_hosts", return_value=[]):
+            rc = _setup(user=None, ssh_config=cfg, dry_run=False)
+
+        assert rc == 0
+        assert "No hosts selected" in capsys.readouterr().out
 
 
 class TestCleanupFunction:
@@ -262,6 +278,7 @@ class TestMainEntrypoint:
         wt = _write_wt_settings(tmp_path)
 
         with (
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=["host1"]),
             patch("wt_tmux_picker.cli.has_tmux", return_value=True),
             patch("wt_tmux_picker.cli.has_fzf", return_value=True),
         ):

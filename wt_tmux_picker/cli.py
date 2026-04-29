@@ -11,7 +11,7 @@ from tmux_manager import TmuxManager
 
 from .ssh_config import parse_ssh_hosts
 from .tmux import has_fzf, has_tmux
-from .tui import pick_profiles, pick_session
+from .tui import pick_hosts, pick_profiles, pick_session
 from .windows_terminal import (
     add_profile,
     list_tmux_profiles,
@@ -36,10 +36,15 @@ def _setup(
         print("No hosts found in SSH config.")
         return 0
 
+    selected = pick_hosts(hosts)
+    if not selected:
+        print("No hosts selected.")
+        return 0
+
     if not dry_run:
         warn_jsonc_comments(settings_path)
 
-    for host in hosts:
+    for host in selected:
         if not has_tmux(host, user, dry_run=dry_run):
             print(f"Checking {host} ...  tmux not found (skipped)")
             continue
