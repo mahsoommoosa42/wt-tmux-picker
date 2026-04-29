@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from textual.widgets import Button, Input, OptionList, SelectionList, Static
+from textual.worker import WorkerState
 
 from wt_tmux_picker.host_info import HostInfo
 from wt_tmux_picker.tui import (
@@ -105,17 +106,90 @@ class TestHostPicker:
         app._on_manual_host(None)
         assert app._manual == []
 
-    def test_on_manual_host_adds_entry(self):
+    def test_on_manual_host_starts_worker(self):
+        app = HostPicker([self._eligible()])
+        app.run_worker = MagicMock()
+        app.notify = MagicMock()
+        app._on_manual_host(("newhost", "alice"))
+        app.run_worker.assert_called_once()
+        app.notify.assert_called_once()
+
+    def _make_worker_event(self, name, state, result=None):
+        worker = MagicMock()
+        worker.name = name
+        worker.result = result
+        event = MagicMock()
+        event.worker = worker
+        event.state = state
+        return event
+
+    def test_worker_success_eligible_adds_to_manual(self):
         app = HostPicker([self._eligible()])
         mock_sl = MagicMock()
         mock_sl.selected = set()
         mock_sl.option_count = 1
+        mock_sl.get_option_at_index.return_value = MagicMock(value="alpha")
         app.query_one = MagicMock(return_value=mock_sl)
-        app._on_manual_host(("newhost", "alice"))
+        app.notify = MagicMock()
+        info = HostInfo(name="newhost", user="alice", platform="Linux",
+                        ip="1.2.3.4", auth="key", has_tmux=True, has_fzf=True)
+        event = self._make_worker_event("probe_manual", WorkerState.SUCCESS, info)
+        app.on_worker_state_changed(event)
         assert len(app._manual) == 1
-        assert app._manual[0].name == "newhost"
-        assert app._manual[0].user == "alice"
         assert app._manual[0].manual is True
+        app.notify.assert_called_once()
+
+    def test_worker_success_ineligible_rejects(self):
+        app = HostPicker([self._eligible()])
+        app.notify = MagicMock()
+        app.query = MagicMock(return_value=MagicMock(__bool__=lambda s: False))
+        app.mount = MagicMock()
+        app.query_one = MagicMock()
+        info = HostInfo(name="badhost", platform="Linux",
+                        has_tmux=False, has_fzf=False)
+        event = self._make_worker_event("probe_manual", WorkerState.SUCCESS, info)
+        app.on_worker_state_changed(event)
+        assert len(app._unavailable) == 1  # newly rejected
+        assert app._manual == []
+        app.mount.assert_called_once()
+
+    def test_worker_success_ineligible_windows_message(self):
+        app = HostPicker([self._eligible()])
+        app.notify = MagicMock()
+        app.query = MagicMock(return_value=MagicMock(__bool__=lambda s: False))
+        app.mount = MagicMock()
+        app.query_one = MagicMock()
+        info = HostInfo(name="winbox", platform="Windows")
+        event = self._make_worker_event("probe_manual", WorkerState.SUCCESS, info)
+        app.on_worker_state_changed(event)
+        call_args = app.notify.call_args
+        assert "Windows" in call_args[0][0]
+        assert "tmux not supported" in call_args[0][0]
+
+    def test_worker_success_updates_existing_unavailable(self):
+        e = self._eligible()
+        u = self._unavailable()
+        app = HostPicker([e, u])
+        app.notify = MagicMock()
+        mock_unavail = MagicMock()
+        mock_result_set = MagicMock(__bool__=lambda s: True)
+        mock_result_set.first.return_value = mock_unavail
+        app.query = MagicMock(return_value=mock_result_set)
+        info = HostInfo(name="bad2", platform="Linux",
+                        has_tmux=False, has_fzf=True)
+        event = self._make_worker_event("probe_manual", WorkerState.SUCCESS, info)
+        app.on_worker_state_changed(event)
+        mock_unavail.update.assert_called_once()
+
+    def test_worker_wrong_name_ignored(self):
+        app = HostPicker([self._eligible()])
+        event = self._make_worker_event("other_worker", WorkerState.SUCCESS)
+        app.on_worker_state_changed(event)  # should not raise
+
+    def test_worker_non_success_ignored(self):
+        app = HostPicker([self._eligible()])
+        event = self._make_worker_event("probe_manual", WorkerState.RUNNING)
+        app.on_worker_state_changed(event)  # should not raise
 
     def test_confirm_returns_selected_eligible(self):
         e = self._eligible("alpha")

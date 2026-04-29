@@ -55,11 +55,29 @@ class TestHostInfo:
         info = HostInfo(name="host1", platform="Linux", ip="1.2.3.4", auth="key")
         assert info.label(2) == "host1  [Linux]  (1.2.3.4)  auth: key"
 
-    def test_unavailable_label(self):
+    def test_rejection_reason_windows(self):
+        info = HostInfo(name="h", platform="Windows")
+        assert info.rejection_reason == "Windows \u2014 tmux not supported"
+
+    def test_rejection_reason_missing_tools(self):
+        info = HostInfo(name="h", platform="Linux", has_tmux=False, has_fzf=False)
+        assert info.rejection_reason == "tmux, fzf not found"
+
+    def test_rejection_reason_eligible(self):
+        info = HostInfo(name="h", platform="Linux", has_tmux=True, has_fzf=True)
+        assert info.rejection_reason == ""
+
+    def test_unavailable_label_linux(self):
         info = HostInfo(name="host1", platform="Linux", has_tmux=False, has_fzf=False)
         result = info.unavailable_label(0)
         assert "tmux, fzf not found" in result
         assert "host1" in result
+
+    def test_unavailable_label_windows(self):
+        info = HostInfo(name="winbox", platform="Windows")
+        result = info.unavailable_label(0)
+        assert "Windows \u2014 tmux not supported" in result
+        assert "winbox" in result
 
 
 class TestSshTarget:

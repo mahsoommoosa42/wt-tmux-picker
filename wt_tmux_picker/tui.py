@@ -8,8 +8,9 @@ from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Header, Input, OptionList, SelectionList, Static
 from textual.widgets.option_list import Option
+from textual.worker import Worker, WorkerState
 
-from .host_info import HostInfo, _VIEW_COUNT
+from .host_info import HostInfo, _VIEW_COUNT, probe_host
 
 
 class SessionPicker(App[str | None]):
@@ -207,12 +208,38 @@ class HostPicker(App[list[HostInfo]]):
         if result is None:
             return
         hostname, username = result
-        info = HostInfo(
-            name=hostname, user=username, manual=True,
-            has_tmux=True, has_fzf=True,
+        self.notify(f"Probing {hostname}\u2026")
+        self.run_worker(
+            lambda: probe_host(hostname, username),
+            name="probe_manual",
+            exclusive=True,
+            thread=True,
         )
-        self._manual.append(info)
-        self._refresh_selection_list()
+
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker.name != "probe_manual":
+            return
+        if event.state != WorkerState.SUCCESS:
+            return
+        info: HostInfo = event.worker.result
+        info.manual = True
+        if info.eligible:
+            self._manual.append(info)
+            self._refresh_selection_list()
+            self.notify(f"{info.name} added")
+        else:
+            self._unavailable.append(info)
+            unavail_nodes = self.query("#unavailable")
+            text = self._unavailable_text()
+            if unavail_nodes:
+                unavail_nodes.first(Static).update(text)
+            else:
+                self.mount(Static(text, id="unavailable"),
+                           before=self.query_one("#btn-bar"))
+            self.notify(
+                f"{info.name} rejected \u2014 {info.rejection_reason}",
+                severity="error",
+            )
 
     def _confirm(self) -> None:
         sl = self.query_one("#host-list", SelectionList)

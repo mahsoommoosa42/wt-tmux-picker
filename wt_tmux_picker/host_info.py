@@ -37,6 +37,14 @@ class HostInfo:
             tools.append("fzf")
         return tools
 
+    @property
+    def rejection_reason(self) -> str:
+        """Human-readable reason why the host is ineligible."""
+        if self.platform == "Windows":
+            return "Windows \u2014 tmux not supported"
+        missing = ", ".join(self.missing_tools)
+        return f"{missing} not found" if missing else ""
+
     def label(self, view: int = 0) -> str:
         """Format display label for the given view level.
 
@@ -52,9 +60,8 @@ class HostInfo:
         return "  ".join(parts)
 
     def unavailable_label(self, view: int = 0) -> str:
-        """Format label with missing-tool annotation."""
-        missing = ", ".join(self.missing_tools)
-        return f"{self.label(view)} \u2014 {missing} not found"
+        """Format label with reason for being unavailable."""
+        return f"{self.label(view)} \u2014 {self.rejection_reason}"
 
 
 # ---------------------------------------------------------------------------
