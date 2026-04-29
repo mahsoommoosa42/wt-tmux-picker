@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wt-tmux-picker"
-version = "0.0.0"
+version = "1.0.0"
 description = "Windows Terminal + tmux session picker via SSH"
 readme = "README.md"
 license = {text = "GPL-3.0-only"}
@@ -21,7 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "textual>=0.50.0",
-    "tmux-manager",
+    "tmux-manager>=1.0.0",
 ]
 
 [project.urls]
@@ -35,8 +35,9 @@ dev = ["pytest", "pytest-cov"]
 [project.scripts]
 wt-tmux-picker = "wt_tmux_picker.cli:main"
 
+
 [tool.uv.sources]
-tmux-manager = {git = "https://github.com/mahsoommoosa42/tmux-manager.git", branch = "main"}
+tmux-manager = {git = "https://github.com/mahsoommoosa42/tmux-manager.git", rev = "2a40c51"}
 
 [tool.setuptools.packages.find]
 where = ["."]
