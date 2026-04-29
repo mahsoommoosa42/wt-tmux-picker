@@ -214,6 +214,12 @@ class TestManualHostScreen:
         screen.on_button_pressed(event)
         screen.dismiss.assert_called_once_with(None)
 
+    def test_action_cancel_dismisses_none(self):
+        screen = ManualHostScreen()
+        screen.dismiss = MagicMock()
+        screen.action_cancel()
+        screen.dismiss.assert_called_once_with(None)
+
 
 class TestProfilePicker:
     def test_stores_profiles(self):

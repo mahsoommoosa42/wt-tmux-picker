@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Header, Input, OptionList, SelectionList, Static
 from textual.widgets.option_list import Option
@@ -51,6 +51,8 @@ class SessionPicker(App[str | None]):
 class ManualHostScreen(ModalScreen[tuple[str, str | None] | None]):
     """Modal dialog for entering a hostname and optional username."""
 
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
     CSS = """
     ManualHostScreen {
         align: center middle;
@@ -68,7 +70,7 @@ class ManualHostScreen(ModalScreen[tuple[str, str | None] | None]):
     """
 
     def compose(self) -> ComposeResult:
-        with Horizontal(id="dialog"):
+        with Vertical(id="dialog"):
             yield Static("Hostname:")
             yield Input(placeholder="e.g. devbox.example.com", id="hostname")
             yield Static("Username (optional):")
@@ -76,6 +78,9 @@ class ManualHostScreen(ModalScreen[tuple[str, str | None] | None]):
             with Horizontal(id="btn-bar"):
                 yield Button("Add", variant="primary", id="add")
                 yield Button("Cancel", id="cancel-dialog")
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "add":
