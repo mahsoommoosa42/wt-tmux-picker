@@ -205,8 +205,8 @@ wheels = [
 
 [[package]]
 name = "tmux-manager"
-version = "0.0.0"
-source = { git = "https://github.com/mahsoommoosa42/tmux-manager.git?branch=main#1ebad6c87e9a26be64b72889e552624ab0b803e1" }
+version = "1.0.0"
+source = { git = "https://github.com/mahsoommoosa42/tmux-manager.git?rev=2a40c51#2a40c51cf2dbda3d8e14fcd86dfad732d983c016" }
 
 [[package]]
 name = "typing-extensions"
@@ -251,7 +251,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-cov", marker = "extra == 'dev'" },
     { name = "textual", specifier = ">=0.50.0" },
-    { name = "tmux-manager", git = "https://github.com/mahsoommoosa42/tmux-manager.git?branch=main" },
+    { name = "tmux-manager", git = "https://github.com/mahsoommoosa42/tmux-manager.git?rev=2a40c51" },
 ]
 provides-extras = ["dev"]
 
