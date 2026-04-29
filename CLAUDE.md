@@ -29,7 +29,7 @@ attach → Pick session from list → Attach or fall back to SSH
 
 ```
 wt_tmux_picker/
-├── __init__.py             # Public API, version
+├── __init__.py             # Public API
 ├── cli.py                  # Entry point, argument parsing, subcommands
 ├── tmux.py                 # Thin delegation to TmuxManager
 ├── ssh_config.py           # SSH config parsing

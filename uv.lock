@@ -272,7 +272,7 @@ wheels = [
 [[package]]
 name = "tmux-manager"
 version = "1.0.2"
-source = { git = "https://github.com/mahsoommoosa42/tmux-manager.git?branch=main#8a211fc8bc97d2bfeaf251831fb9f645870c6ed9" }
+source = { git = "https://github.com/mahsoommoosa42/tmux-manager.git?branch=main#128981087bd877a81258c5df8d94e52fc3ec8e5f" }
 dependencies = [
     { name = "paramiko" },
 ]
@@ -288,7 +288,7 @@ wheels = [
 
 [[package]]
 name = "wt-tmux-picker"
-version = "1.0.2"
+version = "0.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "prompt-toolkit" },
