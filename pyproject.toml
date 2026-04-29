@@ -20,7 +20,7 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "prompt_toolkit",
+    "textual>=0.50.0",
     "tmux-manager",
 ]
 
@@ -52,3 +52,8 @@ source = ["wt_tmux_picker"]
 
 [tool.coverage.report]
 show_missing = true
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=1.3.0",
+]

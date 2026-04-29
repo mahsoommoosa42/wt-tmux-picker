@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from wt_tmux_picker.cli import _setup
+from wt_tmux_picker.host_info import HostInfo
 
 
 def _make_ssh_config(tmp_path: Path, hosts: list[str]) -> Path:
@@ -19,14 +20,20 @@ def _make_wt_settings(tmp_path: Path) -> Path:
     return p
 
 
+def _info(name: str, tmux: bool = True, fzf: bool = True, **kw) -> HostInfo:
+    kw.setdefault("auth", "key")
+    return HostInfo(name=name, has_tmux=tmux, has_fzf=fzf, **kw)
+
+
 class TestSetupFlow:
     def test_full_setup_registers_profiles(self, tmp_path):
         cfg = _make_ssh_config(tmp_path, ["alpha", "beta"])
         wt = _make_wt_settings(tmp_path)
+        infos = [_info("alpha"), _info("beta")]
 
         with (
-            patch("wt_tmux_picker.cli.has_tmux", return_value=True),
-            patch("wt_tmux_picker.cli.has_fzf", return_value=True),
+            patch("wt_tmux_picker.cli.probe_host", side_effect=infos),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=infos),
         ):
             rc = _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
 
@@ -39,10 +46,11 @@ class TestSetupFlow:
     def test_profile_commandline_uses_attach(self, tmp_path):
         cfg = _make_ssh_config(tmp_path, ["myhost"])
         wt = _make_wt_settings(tmp_path)
+        info = _info("myhost")
 
         with (
-            patch("wt_tmux_picker.cli.has_tmux", return_value=True),
-            patch("wt_tmux_picker.cli.has_fzf", return_value=True),
+            patch("wt_tmux_picker.cli.probe_host", return_value=info),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=[info]),
         ):
             _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
 
@@ -51,34 +59,15 @@ class TestSetupFlow:
         assert "wt-tmux-picker attach" in profile["commandline"]
         assert "myhost" in profile["commandline"]
 
-    def test_hosts_without_tmux_not_added(self, tmp_path):
+    def test_unavailable_hosts_not_in_result(self, tmp_path):
         cfg = _make_ssh_config(tmp_path, ["good", "bad"])
         wt = _make_wt_settings(tmp_path)
-
-        def fake_has_tmux(host, user=None, *, dry_run=False):
-            return host == "good"
-
-        with (
-            patch("wt_tmux_picker.cli.has_tmux", side_effect=fake_has_tmux),
-            patch("wt_tmux_picker.cli.has_fzf", return_value=True),
-        ):
-            _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
-
-        settings = json.loads(wt.read_text(encoding="utf-8"))
-        names = {p["name"] for p in settings["profiles"]["list"]}
-        assert "good tmux" in names
-        assert "bad tmux" not in names
-
-    def test_hosts_without_fzf_not_added(self, tmp_path):
-        cfg = _make_ssh_config(tmp_path, ["good", "bad"])
-        wt = _make_wt_settings(tmp_path)
-
-        def fake_has_fzf(host, user=None, *, dry_run=False):
-            return host == "good"
+        good = _info("good")
+        bad = _info("bad", tmux=False)
 
         with (
-            patch("wt_tmux_picker.cli.has_tmux", return_value=True),
-            patch("wt_tmux_picker.cli.has_fzf", side_effect=fake_has_fzf),
+            patch("wt_tmux_picker.cli.probe_host", side_effect=[good, bad]),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=[good]),
         ):
             _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
 
@@ -91,10 +80,11 @@ class TestSetupFlow:
         cfg = _make_ssh_config(tmp_path, ["alpha"])
         wt = _make_wt_settings(tmp_path)
         original = wt.read_text(encoding="utf-8")
+        info = _info("alpha")
 
         with (
-            patch("wt_tmux_picker.cli.has_tmux", return_value=True),
-            patch("wt_tmux_picker.cli.has_fzf", return_value=True),
+            patch("wt_tmux_picker.cli.probe_host", return_value=info),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=[info]),
         ):
             _setup(user=None, ssh_config=cfg, dry_run=True, settings_path=wt)
 
@@ -103,13 +93,31 @@ class TestSetupFlow:
     def test_user_param_in_commandline(self, tmp_path):
         cfg = _make_ssh_config(tmp_path, ["myhost"])
         wt = _make_wt_settings(tmp_path)
+        info = _info("myhost")
 
         with (
-            patch("wt_tmux_picker.cli.has_tmux", return_value=True),
-            patch("wt_tmux_picker.cli.has_fzf", return_value=True),
+            patch("wt_tmux_picker.cli.probe_host", return_value=info),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=[info]),
         ):
             _setup(user="alice", ssh_config=cfg, dry_run=False, settings_path=wt)
 
         settings = json.loads(wt.read_text(encoding="utf-8"))
         profile = settings["profiles"]["list"][0]
         assert "alice" in profile["commandline"]
+
+    def test_manual_host_added(self, tmp_path):
+        cfg = _make_ssh_config(tmp_path, ["host1"])
+        wt = _make_wt_settings(tmp_path)
+        probed = _info("host1")
+        manual = _info("extra", user="bob", manual=True)
+
+        with (
+            patch("wt_tmux_picker.cli.probe_host", return_value=probed),
+            patch("wt_tmux_picker.cli.pick_hosts", return_value=[probed, manual]),
+        ):
+            _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
+
+        settings = json.loads(wt.read_text(encoding="utf-8"))
+        names = {p["name"] for p in settings["profiles"]["list"]}
+        assert "host1 tmux" in names
+        assert "extra tmux" in names

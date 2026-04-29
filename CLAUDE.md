@@ -6,7 +6,10 @@
 
 **Key Features:**
 - Automatic SSH host discovery from `~/.ssh/config`
-- Interactive tmux session picker (prompt_toolkit-based TUI)
+- Interactive tmux session picker (Textual-based TUI)
+- Host probing: platform detection, dual tool status (tmux + fzf), auth method, IP resolution
+- 3-level view cycling (Name+Platform / +IP / +IP+Auth)
+- Manual host entry dialog for ad-hoc hosts
 - Windows Terminal profile management (JSON settings.json manipulation)
 - Fallback to plain SSH if no sessions found
 - Cleanup with optional interactive profile removal picker
@@ -20,7 +23,7 @@
 ### Three Main Operations
 
 ```
-setup  → Read SSH config → Check tmux/fzf → Add WT profiles
+setup  → Read SSH config → Probe hosts (platform/tmux/fzf/auth/IP) → Pick hosts → Add WT profiles
 cleanup → List WT profiles → Interactive picker (or explicit hosts) → Remove profiles
 attach → Pick session from list → Attach or fall back to SSH
 ```
@@ -31,16 +34,18 @@ attach → Pick session from list → Attach or fall back to SSH
 wt_tmux_picker/
 ├── __init__.py             # Public API
 ├── cli.py                  # Entry point, argument parsing, subcommands
+├── host_info.py            # HostInfo dataclass + SSH probing (platform/tmux/fzf/auth/IP)
 ├── tmux.py                 # Thin delegation to TmuxManager
 ├── ssh_config.py           # SSH config parsing
-├── tui.py                  # TUI pickers (session, profiles)
+├── tui.py                  # TUI pickers (Textual: session, hosts, profiles)
 ├── windows_terminal.py     # WT settings.json read/write
 tests/
 ├── unit/
-│   ├── test_cli.py         # Subcommand tests, mocked TmuxManager
+│   ├── test_cli.py         # Subcommand tests, mocked probe_host
+│   ├── test_host_info.py   # HostInfo, probe_host, SSH helpers
 │   ├── test_tmux.py        # Delegation tests
 │   ├── test_ssh_config.py  # SSH config parsing
-│   ├── test_tui.py         # TUI picker tests
+│   ├── test_tui.py         # TUI picker tests (sync + async Textual)
 │   ├── test_windows_terminal.py  # Profile management tests
 │   └── __init__.py
 ├── functional/
@@ -57,15 +62,24 @@ LICENSE
 ### `wt_tmux_picker/cli.py`
 - **Entry Point:** `main()` → parses args → dispatches to subcommand
 - **Subcommands:**
-  - `_setup(user, ssh_config, dry_run, settings_path)` — register profiles
+  - `_setup(user, ssh_config, dry_run, settings_path)` — probe hosts, pick hosts, register profiles
   - `_cleanup(dry_run, hosts, settings_path)` — remove profiles
   - `_attach(host, user)` — attach to session or fall back to SSH
 - **Key Details:**
   - Uses `parse_ssh_hosts()` to read SSH config
-  - Uses `TmuxManager` to check tool availability and list sessions
+  - Uses `probe_host()` from `host_info.py` to gather metadata per host (batched SSH)
+  - Uses `TmuxManager` for session listing and attachment
   - Uses `add_profile()` / `remove_tmux_profiles()` for WT settings
   - Uses TUI pickers for interactive workflows
-- **Testing:** Mock `TmuxManager`, file I/O, TUI
+- **Testing:** Mock `probe_host`, file I/O, TUI
+
+### `wt_tmux_picker/host_info.py`
+- **Dataclass:** `HostInfo` — metadata for an SSH host (name, user, platform, ip, auth, has_tmux, has_fzf, manual)
+- **Function:** `probe_host(host, user, *, dry_run)` → `HostInfo`
+- **Probing Strategy:** Single SSH call returns platform (uname), tmux, fzf status in 3 lines. Uses key auth only (`BatchMode=yes`); hosts that fail key auth are marked as unreachable.
+- **Helpers:** `_resolve_hostname` (parses `ssh -G`), `_resolve_ip` (DNS lookup), `_map_platform` (uname → friendly name), `_parse_probe` (parse 3-line output)
+- **Properties:** `HostInfo.eligible` (both tools present), `HostInfo.missing_tools`, `HostInfo.label(view)` (3-level display), `HostInfo.unavailable_label(view)`
+- **Testing:** Mock subprocess and socket calls
 
 ### `wt_tmux_picker/tmux.py`
 - **Purpose:** Thin delegation layer to `TmuxManager`
@@ -83,14 +97,21 @@ LICENSE
 - **Testing:** Mock file I/O, test various SSH config formats
 
 ### `wt_tmux_picker/tui.py`
-- **Purpose:** Interactive TUI pickers using prompt_toolkit
-- **Functions:**
-  - `pick_session(host, sessions)` → RadioList picker (single select)
-  - `pick_profiles(profiles)` → CheckboxList picker (multi-select)
-- **Return Values:**
-  - `pick_session()` returns selected session name or `None` (Escape pressed)
-  - `pick_profiles()` returns list of selected profile names
-- **Testing:** Mock prompt_toolkit session creation and input
+- **Purpose:** Interactive TUI pickers using Textual
+- **Classes:**
+  - `SessionPicker` — single-select OptionList for tmux sessions
+  - `HostPicker` — multi-select SelectionList for SSH hosts with view cycling and unavailable section
+  - `ManualHostScreen` — modal dialog for ad-hoc hostname+username entry
+  - `ProfilePicker` — multi-select SelectionList for WT profile cleanup
+- **Public Functions:**
+  - `pick_session(sessions, host)` → selected session name or `None`
+  - `pick_hosts(hosts: list[HostInfo])` → selected `list[HostInfo]`
+  - `pick_profiles(profiles)` → selected profile names
+- **Host Picker Features:**
+  - View cycling: `v` keybinding toggles Name+Platform / +IP / +IP+Auth
+  - Unavailable section: non-selectable hosts showing missing tools
+  - Manual entry: "Add Host…" button opens ManualHostScreen modal
+- **Testing:** Sync tests (mock exit/query_one), async tests (Textual `run_test()`)
 
 ### `wt_tmux_picker/windows_terminal.py`
 - **Purpose:** Read/write Windows Terminal settings.json
@@ -132,13 +153,15 @@ pytest --cov=wt_tmux_picker --cov-report=term-missing
 
 ### Test Patterns
 
-**Pattern 1: Mock TmuxManager**
+**Pattern 1: Mock probe_host**
 ```python
-def test_setup_skips_hosts_without_tmux(self):
-    with patch("wt_tmux_picker.cli.has_tmux", return_value=False):
-        with patch("wt_tmux_picker.cli.add_profile") as mock_add:
-            _setup(None, None, False)
-    mock_add.assert_not_called()
+def test_setup_adds_profile(self, tmp_path):
+    info = HostInfo(name="host1", has_tmux=True, has_fzf=True)
+    with (
+        patch("wt_tmux_picker.cli.probe_host", return_value=info),
+        patch("wt_tmux_picker.cli.pick_hosts", return_value=[info]),
+    ):
+        _setup(user=None, ssh_config=cfg, dry_run=False, settings_path=wt)
 ```
 
 **Pattern 2: Mock file I/O**
@@ -242,11 +265,11 @@ This allows:
 ## Dependencies and Constraints
 
 **Runtime Dependencies:**
-- `prompt_toolkit` — TUI pickers
+- `textual>=0.50.0` — TUI pickers (Textual framework)
 - `tmux-manager` — SSH/tmux operations (from PyPI)
 
 **Dev Dependencies:**
-- `pytest`, `pytest-cov` — testing and coverage
+- `pytest`, `pytest-cov`, `pytest-asyncio` — testing, coverage, and async Textual tests
 
 **Python Version:** 3.12 only
 
@@ -264,10 +287,12 @@ This allows:
 - Easy to swap implementation or add caching
 - Simplifies testing (one mock point in cli.py)
 
-### Why prompt_toolkit TUI instead of click?
-- Native terminal UI without external deps
-- Better UX than plain menu (keyboard navigation, visual feedback)
-- Works on Windows Terminal
+### Why Textual TUI?
+- Rich, modern terminal UI framework with CSS-based styling
+- Built-in widgets (OptionList, SelectionList, Input, Button)
+- Modal dialog support for complex interactions (ManualHostScreen)
+- Async testing via `App.run_test()` for full compose/mount coverage
+- Works cross-platform including Windows Terminal
 
 ### Why UUID5 for profile GUIDs?
 - Deterministic (same host → same GUID across runs)
@@ -288,7 +313,7 @@ the underlying `tmux-manager` library has platform-specific SSH behavior:
 
 ### Impact on subcommands
 
-- **`setup`**: Checks `tmux` and `fzf` per host — 2 SSH calls per host, each may prompt for password with password auth
+- **`setup`**: Probes each host via `probe_host()` — 1 SSH call per host (`BatchMode=yes`, key auth only). Single call returns platform + tmux + fzf status
 - **`attach`**: Calls `list_sessions()` then `attach_session()` — 2 SSH calls, each may prompt
 - **`cleanup`**: Only reads local Windows Terminal settings.json — no SSH calls
 
@@ -331,6 +356,6 @@ This eliminates all password prompts across all subcommands.
 ## References
 
 - [Windows Terminal Documentation](https://docs.microsoft.com/en-us/windows/terminal/)
-- [Prompt Toolkit](https://python-prompt-toolkit.readthedocs.io/)
+- [Textual Framework](https://textual.textualize.io/)
 - [Tmux Manager Library](https://github.com/mahsoommoosa42/tmux-manager)
 - [UUID5 for Stable IDs](https://docs.python.org/3/library/uuid.html#uuid.uuid5)

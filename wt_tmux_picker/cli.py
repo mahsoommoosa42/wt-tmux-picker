@@ -9,9 +9,9 @@ from pathlib import Path
 
 from tmux_manager import TmuxManager
 
+from .host_info import probe_host
 from .ssh_config import parse_ssh_hosts
-from .tmux import has_fzf, has_tmux
-from .tui import pick_profiles, pick_session
+from .tui import pick_hosts, pick_profiles, pick_session
 from .windows_terminal import (
     add_profile,
     list_tmux_profiles,
@@ -36,28 +36,27 @@ def _setup(
         print("No hosts found in SSH config.")
         return 0
 
+    host_infos = [probe_host(h, user, dry_run=dry_run) for h in hosts]
+
+    selected = pick_hosts(host_infos)
+    if not selected:
+        print("No hosts selected.")
+        return 0
+
     if not dry_run:
         warn_jsonc_comments(settings_path)
 
-    for host in hosts:
-        if not has_tmux(host, user, dry_run=dry_run):
-            print(f"Checking {host} ...  tmux not found (skipped)")
-            continue
-        if not has_fzf(host, user, dry_run=dry_run):
-            print(f"Checking {host} ...  fzf not found (skipped)")
-            continue
-
-        print(f"Checking {host} ...  tmux found, fzf found")
-
+    for info in selected:
+        host_user = info.user or user
         if dry_run:
-            print(f'[dry-run] Would add profile: "{host} tmux"')
+            print(f'[dry-run] Would add profile: "{info.name} tmux"')
             continue
 
-        added = add_profile(host, user, settings_path=settings_path)
+        added = add_profile(info.name, host_user, settings_path=settings_path)
         if added:
-            print(f'Added  Windows Terminal profile: "{host} tmux"')
+            print(f'Added  Windows Terminal profile: "{info.name} tmux"')
         else:
-            print(f'Skipped  "{host} tmux" (profile already exists)')
+            print(f'Skipped  "{info.name} tmux" (profile already exists)')
 
     return 0
 
