@@ -1,9 +1,14 @@
 """Unit tests for tui.py."""
 
+import pytest
 from unittest.mock import MagicMock, patch
 
+from textual.widgets import Input, SelectionList, Static
+
+from wt_tmux_picker.host_info import HostInfo
 from wt_tmux_picker.tui import (
     HostPicker,
+    ManualHostScreen,
     ProfilePicker,
     SessionPicker,
     pick_hosts,
@@ -39,59 +44,175 @@ class TestSessionPicker:
 
 
 class TestHostPicker:
-    def test_stores_eligible_and_unavailable(self):
-        app = HostPicker(["alpha"], [("beta", "tmux not found")])
-        assert app.eligible == ["alpha"]
-        assert app.unavailable == [("beta", "tmux not found")]
+    @staticmethod
+    def _eligible(name: str = "alpha") -> HostInfo:
+        return HostInfo(name=name, platform="Linux", has_tmux=True, has_fzf=True)
 
-    def test_unavailable_defaults_to_empty(self):
-        app = HostPicker(["alpha"])
-        assert app.unavailable == []
+    @staticmethod
+    def _unavailable(name: str = "beta", tmux: bool = False) -> HostInfo:
+        return HostInfo(name=name, platform="Linux", has_tmux=tmux, has_fzf=False)
 
-    def test_compose_eligible_only(self):
-        app = HostPicker(["alpha"])
-        widgets = list(app.compose())
-        # Header, info, SelectionList, Confirm, Footer
-        assert len(widgets) == 5
+    def test_separates_eligible_and_unavailable(self):
+        e = self._eligible()
+        u = self._unavailable()
+        app = HostPicker([e, u])
+        assert app._eligible == [e]
+        assert app._unavailable == [u]
 
-    def test_compose_with_unavailable(self):
-        app = HostPicker(["alpha"], [("beta", "tmux not found")])
-        widgets = list(app.compose())
-        # Header, info, SelectionList, unavailable Static, Confirm, Footer
-        assert len(widgets) == 6
+    def test_eligible_only_no_unavailable(self):
+        app = HostPicker([self._eligible()])
+        assert len(app._eligible) == 1
+        assert len(app._unavailable) == 0
 
-    def test_compose_no_eligible(self):
-        app = HostPicker([], [("beta", "tmux not found")])
-        widgets = list(app.compose())
-        # Header, info, unavailable Static, Confirm, Footer
-        assert len(widgets) == 5
+    def test_has_unavailable_section(self):
+        app = HostPicker([self._eligible(), self._unavailable()])
+        assert len(app._eligible) == 1
+        assert len(app._unavailable) == 1
 
-    def test_button_pressed_exits_with_selected(self):
-        app = HostPicker(["alpha", "beta"])
-        mock_sel = MagicMock()
-        mock_sel.selected = ["alpha"]
-        mock_nodes = MagicMock()
-        mock_nodes.__bool__ = lambda self: True
-        mock_nodes.first.return_value = mock_sel
-        app.query = MagicMock(return_value=mock_nodes)
-        app.exit = MagicMock()
-        app.on_button_pressed(MagicMock())
-        app.exit.assert_called_once_with(["alpha"])
-
-    def test_button_pressed_no_eligible_exits_empty(self):
-        app = HostPicker([], [("beta", "tmux not found")])
-        mock_nodes = MagicMock()
-        mock_nodes.__bool__ = lambda self: False
-        app.query = MagicMock(return_value=mock_nodes)
-        app.exit = MagicMock()
-        app.on_button_pressed(MagicMock())
-        app.exit.assert_called_once_with([])
-
-    def test_cancel_exits_empty_list(self):
-        app = HostPicker(["alpha"])
+    def test_action_cancel_exits_empty(self):
+        app = HostPicker([self._eligible()])
         app.exit = MagicMock()
         app.action_cancel()
         app.exit.assert_called_once_with([])
+
+    def test_action_cycle_view_increments(self):
+        app = HostPicker([self._eligible()])
+        assert app._view == 0
+        # Mock query methods to prevent widget errors
+        mock_static = MagicMock()
+        mock_sl = MagicMock()
+        mock_sl.selected = set()
+        mock_sl.option_count = 1
+
+        def fake_query_one(selector, *args):
+            if selector == "#view-label":
+                return mock_static
+            if selector == "#host-list":
+                return mock_sl
+            return MagicMock()
+
+        app.query_one = fake_query_one
+        app.query = MagicMock(return_value=MagicMock(__bool__=lambda s: False))
+        app.action_cycle_view()
+        assert app._view == 1
+        app.action_cycle_view()
+        assert app._view == 2
+        app.action_cycle_view()
+        assert app._view == 0
+
+    def test_on_manual_host_none_ignored(self):
+        app = HostPicker([self._eligible()])
+        app._on_manual_host(None)
+        assert app._manual == []
+
+    def test_on_manual_host_adds_entry(self):
+        app = HostPicker([self._eligible()])
+        mock_sl = MagicMock()
+        mock_sl.selected = set()
+        mock_sl.option_count = 1
+        app.query_one = MagicMock(return_value=mock_sl)
+        app._on_manual_host(("newhost", "alice"))
+        assert len(app._manual) == 1
+        assert app._manual[0].name == "newhost"
+        assert app._manual[0].user == "alice"
+        assert app._manual[0].manual is True
+
+    def test_confirm_returns_selected_eligible(self):
+        e = self._eligible("alpha")
+        app = HostPicker([e])
+        app.exit = MagicMock()
+        mock_sl = MagicMock()
+        mock_sl.selected = {"alpha"}
+        app.query_one = MagicMock(return_value=mock_sl)
+        app._confirm()
+        app.exit.assert_called_once()
+        result = app.exit.call_args[0][0]
+        assert len(result) == 1
+        assert result[0].name == "alpha"
+
+    def test_confirm_empty_selection(self):
+        app = HostPicker([self._eligible()])
+        app.exit = MagicMock()
+        mock_sl = MagicMock()
+        mock_sl.selected = set()
+        app.query_one = MagicMock(return_value=mock_sl)
+        app._confirm()
+        app.exit.assert_called_once_with([])
+
+    def test_on_button_pressed_unknown_id_is_noop(self):
+        app = HostPicker([self._eligible()])
+        app.exit = MagicMock()
+        event = MagicMock()
+        event.button.id = "unknown"
+        app.on_button_pressed(event)
+        app.exit.assert_not_called()
+
+    def test_unavailable_text_shows_missing_tools(self):
+        u = HostInfo(name="bad", platform="Linux", has_tmux=False, has_fzf=False)
+        app = HostPicker([u])
+        text = app._unavailable_text()
+        assert "bad" in text
+        assert "tmux, fzf not found" in text
+        assert "Unavailable:" in text
+
+
+class TestManualHostScreen:
+    def test_add_button_with_hostname(self):
+        screen = ManualHostScreen()
+        mock_hostname = MagicMock()
+        mock_hostname.value = "devbox"
+        mock_username = MagicMock()
+        mock_username.value = "alice"
+
+        def fake_query_one(selector, cls):
+            if selector == "#hostname":
+                return mock_hostname
+            return mock_username
+
+        screen.query_one = fake_query_one
+        screen.dismiss = MagicMock()
+        event = MagicMock()
+        event.button.id = "add"
+        screen.on_button_pressed(event)
+        screen.dismiss.assert_called_once_with(("devbox", "alice"))
+
+    def test_add_button_empty_hostname_ignored(self):
+        screen = ManualHostScreen()
+        mock_hostname = MagicMock()
+        mock_hostname.value = "  "
+        screen.query_one = MagicMock(return_value=mock_hostname)
+        screen.dismiss = MagicMock()
+        event = MagicMock()
+        event.button.id = "add"
+        screen.on_button_pressed(event)
+        screen.dismiss.assert_not_called()
+
+    def test_add_button_no_username(self):
+        screen = ManualHostScreen()
+        mock_hostname = MagicMock()
+        mock_hostname.value = "devbox"
+        mock_username = MagicMock()
+        mock_username.value = ""
+
+        def fake_query_one(selector, cls):
+            if selector == "#hostname":
+                return mock_hostname
+            return mock_username
+
+        screen.query_one = fake_query_one
+        screen.dismiss = MagicMock()
+        event = MagicMock()
+        event.button.id = "add"
+        screen.on_button_pressed(event)
+        screen.dismiss.assert_called_once_with(("devbox", None))
+
+    def test_cancel_button(self):
+        screen = ManualHostScreen()
+        screen.dismiss = MagicMock()
+        event = MagicMock()
+        event.button.id = "cancel-dialog"
+        screen.on_button_pressed(event)
+        screen.dismiss.assert_called_once_with(None)
 
 
 class TestProfilePicker:
@@ -137,30 +258,25 @@ class TestPickSession:
 
 class TestPickHosts:
     def test_returns_selected_hosts(self):
+        infos = [HostInfo(name="a", has_tmux=True, has_fzf=True)]
         with patch("wt_tmux_picker.tui.HostPicker") as MockApp:
-            MockApp.return_value.run.return_value = ["alpha", "beta"]
-            result = pick_hosts(["alpha", "beta", "gamma"])
-        assert result == ["alpha", "beta"]
-        MockApp.assert_called_once_with(["alpha", "beta", "gamma"], None)
-
-    def test_passes_unavailable(self):
-        unavail = [("bad", "tmux not found")]
-        with patch("wt_tmux_picker.tui.HostPicker") as MockApp:
-            MockApp.return_value.run.return_value = ["alpha"]
-            result = pick_hosts(["alpha"], unavail)
-        assert result == ["alpha"]
-        MockApp.assert_called_once_with(["alpha"], unavail)
+            MockApp.return_value.run.return_value = infos
+            result = pick_hosts(infos)
+        assert result == infos
+        MockApp.assert_called_once_with(infos)
 
     def test_returns_empty_when_cancelled(self):
+        infos = [HostInfo(name="a", has_tmux=True, has_fzf=True)]
         with patch("wt_tmux_picker.tui.HostPicker") as MockApp:
             MockApp.return_value.run.return_value = None
-            result = pick_hosts(["alpha"])
+            result = pick_hosts(infos)
         assert result == []
 
     def test_returns_empty_when_none_selected(self):
+        infos = [HostInfo(name="a", has_tmux=True, has_fzf=True)]
         with patch("wt_tmux_picker.tui.HostPicker") as MockApp:
             MockApp.return_value.run.return_value = []
-            result = pick_hosts(["alpha"])
+            result = pick_hosts(infos)
         assert result == []
 
 
@@ -185,3 +301,74 @@ class TestPickProfiles:
             MockApp.return_value.run.return_value = []
             result = pick_profiles(["devbox tmux"])
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Async Textual tests (run_test) for compose / mount / button coverage
+# ---------------------------------------------------------------------------
+
+
+class TestHostPickerAsync:
+    @staticmethod
+    def _eligible(name: str = "alpha") -> HostInfo:
+        return HostInfo(name=name, platform="Linux", ip="1.2.3.4",
+                        auth="key", has_tmux=True, has_fzf=True)
+
+    @staticmethod
+    def _unavailable(name: str = "beta") -> HostInfo:
+        return HostInfo(name=name, platform="Linux", has_tmux=False, has_fzf=False)
+
+    @pytest.mark.asyncio
+    async def test_compose_mounts_widgets(self):
+        app = HostPicker([self._eligible()])
+        async with app.run_test() as pilot:
+            assert app.query_one("#host-list", SelectionList) is not None
+            assert app.query_one("#view-label", Static) is not None
+
+    @pytest.mark.asyncio
+    async def test_compose_with_unavailable_section(self):
+        app = HostPicker([self._eligible(), self._unavailable()])
+        async with app.run_test() as pilot:
+            unavail = app.query_one("#unavailable", Static)
+            assert unavail is not None
+
+    @pytest.mark.asyncio
+    async def test_on_mount_populates_selection_list(self):
+        app = HostPicker([self._eligible("alpha")])
+        async with app.run_test() as pilot:
+            sl = app.query_one("#host-list", SelectionList)
+            assert sl.option_count == 1
+
+    @pytest.mark.asyncio
+    async def test_cycle_view_updates_unavailable(self):
+        app = HostPicker([self._eligible(), self._unavailable()])
+        async with app.run_test() as pilot:
+            await pilot.press("v")
+            assert app._view == 1
+            unavail = app.query_one("#unavailable", Static)
+            assert unavail is not None
+
+    @pytest.mark.asyncio
+    async def test_confirm_button(self):
+        app = HostPicker([self._eligible("alpha")])
+        async with app.run_test() as pilot:
+            await pilot.click("#confirm")
+
+    @pytest.mark.asyncio
+    async def test_add_host_button_opens_dialog(self):
+        app = HostPicker([self._eligible()])
+        async with app.run_test() as pilot:
+            await pilot.click("#add-host")
+            assert len(app.screen_stack) > 1
+
+
+class TestManualHostScreenAsync:
+    @pytest.mark.asyncio
+    async def test_compose_renders_dialog(self):
+        app = HostPicker([HostInfo(name="h", has_tmux=True, has_fzf=True)])
+        async with app.run_test() as pilot:
+            app.push_screen(ManualHostScreen(), callback=app._on_manual_host)
+            await pilot.pause()
+            screen = app.screen_stack[-1]
+            hostname_input = screen.query_one("#hostname", Input)
+            assert hostname_input is not None
