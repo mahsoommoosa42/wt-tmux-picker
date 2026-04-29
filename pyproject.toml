@@ -20,7 +20,7 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "prompt_toolkit",
+    "textual>=0.50.0",
     "tmux-manager",
 ]
 
