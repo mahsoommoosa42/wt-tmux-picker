@@ -76,7 +76,7 @@ LICENSE
 ### `wt_tmux_picker/host_info.py`
 - **Dataclass:** `HostInfo` — metadata for an SSH host (name, user, platform, ip, auth, has_tmux, has_fzf, manual)
 - **Function:** `probe_host(host, user, *, dry_run)` → `HostInfo`
-- **Probing Strategy:** Single SSH call returns platform (uname), tmux, fzf status in 3 lines. Tries key auth first (`BatchMode=yes`), falls back to interactive SSH.
+- **Probing Strategy:** Single SSH call returns platform (uname), tmux, fzf status in 3 lines. Uses key auth only (`BatchMode=yes`); hosts that fail key auth are marked as unreachable.
 - **Helpers:** `_resolve_hostname` (parses `ssh -G`), `_resolve_ip` (DNS lookup), `_map_platform` (uname → friendly name), `_parse_probe` (parse 3-line output)
 - **Properties:** `HostInfo.eligible` (both tools present), `HostInfo.missing_tools`, `HostInfo.label(view)` (3-level display), `HostInfo.unavailable_label(view)`
 - **Testing:** Mock subprocess and socket calls
@@ -313,7 +313,7 @@ the underlying `tmux-manager` library has platform-specific SSH behavior:
 
 ### Impact on subcommands
 
-- **`setup`**: Probes each host via `probe_host()` — 1-2 SSH calls per host (key auth first, fallback to password). Single call returns platform + tmux + fzf status
+- **`setup`**: Probes each host via `probe_host()` — 1 SSH call per host (`BatchMode=yes`, key auth only). Single call returns platform + tmux + fzf status
 - **`attach`**: Calls `list_sessions()` then `attach_session()` — 2 SSH calls, each may prompt
 - **`cleanup`**: Only reads local Windows Terminal settings.json — no SSH calls
 

@@ -26,7 +26,8 @@ class HostInfo:
     @property
     def eligible(self) -> bool:
         """True when key auth succeeded and both tmux and fzf are present."""
-        return self.auth == "key" and self.has_tmux and self.has_fzf
+        return (self.auth == "key" and self.platform != "Windows"
+                and self.has_tmux and self.has_fzf)
 
     @property
     def missing_tools(self) -> list[str]:

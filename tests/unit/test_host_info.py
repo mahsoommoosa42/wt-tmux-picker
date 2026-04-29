@@ -23,6 +23,11 @@ class TestHostInfo:
         info = HostInfo(name="h", auth="unknown", has_tmux=True, has_fzf=True)
         assert info.eligible is False
 
+    def test_not_eligible_windows_even_with_tools(self):
+        info = HostInfo(name="h", platform="Windows", auth="key",
+                        has_tmux=True, has_fzf=True)
+        assert info.eligible is False
+
     def test_not_eligible_without_tmux(self):
         info = HostInfo(name="h", has_tmux=False, has_fzf=True)
         assert info.eligible is False
