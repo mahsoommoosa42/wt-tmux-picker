@@ -74,6 +74,8 @@ class ManualHostScreen(ModalScreen[tuple[str, str | None, str | None] | None]):
     #btn-bar { height: 3; margin: 1 0 0 0; }
     """
 
+    _INPUT_ORDER = ("hostname", "username", "keyfile")
+
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog"):
             yield Static("Hostname:")
@@ -94,17 +96,28 @@ class ManualHostScreen(ModalScreen[tuple[str, str | None, str | None] | None]):
         if isinstance(focused, Input) and event.key in ("up", "down"):
             event.prevent_default()
             event.stop()
+            idx = self._INPUT_ORDER.index(focused.id or "")
             if event.key == "down":
-                self.focus_next()
+                if idx < len(self._INPUT_ORDER) - 1:
+                    self.query_one(f"#{self._INPUT_ORDER[idx + 1]}", Input).focus()
+                else:
+                    self.query_one("#add", Button).focus()
             else:
-                self.focus_previous()
+                if idx > 0:
+                    self.query_one(f"#{self._INPUT_ORDER[idx - 1]}", Input).focus()
         elif isinstance(focused, Button) and event.key in ("left", "right"):
             event.prevent_default()
             event.stop()
-            if event.key == "right":
-                self.focus_next()
-            else:
-                self.focus_previous()
+            buttons = list(self.query(Button))
+            idx = buttons.index(focused)
+            if event.key == "right" and idx < len(buttons) - 1:
+                buttons[idx + 1].focus()
+            elif event.key == "left" and idx > 0:
+                buttons[idx - 1].focus()
+        elif isinstance(focused, Button) and event.key == "up":
+            event.prevent_default()
+            event.stop()
+            self.query_one(f"#{self._INPUT_ORDER[-1]}", Input).focus()
 
     def action_cancel(self) -> None:
         self.dismiss(None)
@@ -176,13 +189,24 @@ class HostPicker(App[list[HostInfo]]):
         self.query_one("#host-list", SelectionList).focus()
 
     def on_key(self, event: Key) -> None:
-        if isinstance(self.focused, Button) and event.key in ("left", "right"):
+        focused = self.focused
+        if isinstance(focused, Button) and event.key in ("left", "right"):
             event.prevent_default()
             event.stop()
-            if event.key == "right":
-                self.screen.focus_next()
-            else:
-                self.screen.focus_previous()
+            buttons = list(self.query("#btn-bar Button"))
+            idx = buttons.index(focused)
+            if event.key == "right" and idx < len(buttons) - 1:
+                buttons[idx + 1].focus()
+            elif event.key == "left" and idx > 0:
+                buttons[idx - 1].focus()
+        elif isinstance(focused, Button) and event.key == "up":
+            event.prevent_default()
+            event.stop()
+            self.query_one("#host-list", SelectionList).focus()
+        elif isinstance(focused, SelectionList) and event.key == "down":
+            event.prevent_default()
+            event.stop()
+            self.query_one("#add-host", Button).focus()
 
     # -- actions ------------------------------------------------------------
 
@@ -298,13 +322,27 @@ class ProfilePicker(App[list[str]]):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Static("↑/↓ to move, Space to toggle, Enter to confirm", id="info")
+        yield Static(
+            "\u2191/\u2193 to move, Space to toggle, Enter to confirm",
+            id="info",
+        )
         yield SelectionList(*[(p, p) for p in self.profiles])
         yield Button("Confirm", id="confirm")
         yield Footer()
 
     def on_mount(self) -> None:
         self.query_one(SelectionList).focus()
+
+    def on_key(self, event: Key) -> None:
+        focused = self.focused
+        if isinstance(focused, Button) and event.key == "up":
+            event.prevent_default()
+            event.stop()
+            self.query_one(SelectionList).focus()
+        elif isinstance(focused, SelectionList) and event.key == "down":
+            event.prevent_default()
+            event.stop()
+            self.query_one("#confirm", Button).focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         sel = self.query_one(SelectionList)

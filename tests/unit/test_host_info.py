@@ -15,9 +15,13 @@ from wt_tmux_picker.host_info import (
 
 
 class TestHostInfo:
-    def test_eligible_when_both_present(self):
-        info = HostInfo(name="h", has_tmux=True, has_fzf=True)
+    def test_eligible_when_key_auth_and_both_present(self):
+        info = HostInfo(name="h", auth="key", has_tmux=True, has_fzf=True)
         assert info.eligible is True
+
+    def test_not_eligible_without_key_auth(self):
+        info = HostInfo(name="h", auth="unknown", has_tmux=True, has_fzf=True)
+        assert info.eligible is False
 
     def test_not_eligible_without_tmux(self):
         info = HostInfo(name="h", has_tmux=False, has_fzf=True)
@@ -55,29 +59,42 @@ class TestHostInfo:
         info = HostInfo(name="host1", platform="Linux", ip="1.2.3.4", auth="key")
         assert info.label(2) == "host1  [Linux]  (1.2.3.4)  auth: key"
 
+    def test_rejection_reason_no_key_auth(self):
+        info = HostInfo(name="h", platform="Linux", auth="unknown")
+        assert info.rejection_reason == "key auth failed"
+
     def test_rejection_reason_windows(self):
-        info = HostInfo(name="h", platform="Windows")
+        info = HostInfo(name="h", platform="Windows", auth="key")
         assert info.rejection_reason == "Windows \u2014 tmux not supported"
 
     def test_rejection_reason_missing_tools(self):
-        info = HostInfo(name="h", platform="Linux", has_tmux=False, has_fzf=False)
+        info = HostInfo(name="h", platform="Linux", auth="key",
+                        has_tmux=False, has_fzf=False)
         assert info.rejection_reason == "tmux, fzf not found"
 
     def test_rejection_reason_eligible(self):
-        info = HostInfo(name="h", platform="Linux", has_tmux=True, has_fzf=True)
+        info = HostInfo(name="h", platform="Linux", auth="key",
+                        has_tmux=True, has_fzf=True)
         assert info.rejection_reason == ""
 
     def test_unavailable_label_linux(self):
-        info = HostInfo(name="host1", platform="Linux", has_tmux=False, has_fzf=False)
+        info = HostInfo(name="host1", platform="Linux", auth="key",
+                        has_tmux=False, has_fzf=False)
         result = info.unavailable_label(0)
         assert "tmux, fzf not found" in result
         assert "host1" in result
 
     def test_unavailable_label_windows(self):
-        info = HostInfo(name="winbox", platform="Windows")
+        info = HostInfo(name="winbox", platform="Windows", auth="key")
         result = info.unavailable_label(0)
         assert "Windows \u2014 tmux not supported" in result
         assert "winbox" in result
+
+    def test_unavailable_label_auth_failed(self):
+        info = HostInfo(name="nokey", platform="Unknown")
+        result = info.unavailable_label(0)
+        assert "key auth failed" in result
+        assert "nokey" in result
 
 
 class TestSshTarget:
@@ -264,6 +281,7 @@ class TestProbeHost:
         info = probe_host("h", "alice", dry_run=True)
         assert info.name == "h"
         assert info.user == "alice"
+        assert info.auth == "key"
         assert info.has_tmux is True
         assert info.has_fzf is True
 
@@ -288,26 +306,22 @@ class TestProbeHost:
         assert info.has_tmux is True
         assert info.has_fzf is True
 
-    def test_password_auth_fallback(self):
-        calls = []
-
-        def fake_probe(host, user, *, identity_file=None, batch_mode=False):
-            calls.append(batch_mode)
-            if batch_mode:
-                return (1, "")
-            return (0, "Darwin\nyes\nno\n")
-
+    def test_key_auth_failure_marks_unreachable(self):
         with (
             patch("wt_tmux_picker.host_info._resolve_hostname", return_value="h"),
             patch("wt_tmux_picker.host_info._resolve_ip", return_value="N/A"),
-            patch("wt_tmux_picker.host_info._probe_ssh", side_effect=fake_probe),
+            patch(
+                "wt_tmux_picker.host_info._probe_ssh",
+                return_value=(255, ""),
+            ),
         ):
             info = probe_host("h")
 
-        assert calls == [True, False]
-        assert info.auth == "password"
-        assert info.platform == "macOS"
+        assert info.auth == "unknown"
+        assert info.has_tmux is False
         assert info.has_fzf is False
+        assert info.eligible is False
+        assert info.rejection_reason == "key auth failed"
 
     def test_unreachable_host(self):
         with (

@@ -47,11 +47,13 @@ class TestSessionPicker:
 class TestHostPicker:
     @staticmethod
     def _eligible(name: str = "alpha") -> HostInfo:
-        return HostInfo(name=name, platform="Linux", has_tmux=True, has_fzf=True)
+        return HostInfo(name=name, platform="Linux", auth="key",
+                        has_tmux=True, has_fzf=True)
 
     @staticmethod
     def _unavailable(name: str = "beta", tmux: bool = False) -> HostInfo:
-        return HostInfo(name=name, platform="Linux", has_tmux=tmux, has_fzf=False)
+        return HostInfo(name=name, platform="Linux", auth="key",
+                        has_tmux=tmux, has_fzf=False)
 
     def test_separates_eligible_and_unavailable(self):
         e = self._eligible()
@@ -145,7 +147,7 @@ class TestHostPicker:
         app.query = MagicMock(return_value=MagicMock(__bool__=lambda s: False))
         app.mount = MagicMock()
         app.query_one = MagicMock()
-        info = HostInfo(name="badhost", platform="Linux",
+        info = HostInfo(name="badhost", platform="Linux", auth="key",
                         has_tmux=False, has_fzf=False)
         event = self._make_worker_event("probe_manual", WorkerState.SUCCESS, info)
         app.on_worker_state_changed(event)
@@ -159,7 +161,7 @@ class TestHostPicker:
         app.query = MagicMock(return_value=MagicMock(__bool__=lambda s: False))
         app.mount = MagicMock()
         app.query_one = MagicMock()
-        info = HostInfo(name="winbox", platform="Windows")
+        info = HostInfo(name="winbox", platform="Windows", auth="key")
         event = self._make_worker_event("probe_manual", WorkerState.SUCCESS, info)
         app.on_worker_state_changed(event)
         call_args = app.notify.call_args
@@ -175,7 +177,7 @@ class TestHostPicker:
         mock_result_set = MagicMock(__bool__=lambda s: True)
         mock_result_set.first.return_value = mock_unavail
         app.query = MagicMock(return_value=mock_result_set)
-        info = HostInfo(name="bad2", platform="Linux",
+        info = HostInfo(name="bad2", platform="Linux", auth="key",
                         has_tmux=False, has_fzf=True)
         event = self._make_worker_event("probe_manual", WorkerState.SUCCESS, info)
         app.on_worker_state_changed(event)
@@ -222,7 +224,8 @@ class TestHostPicker:
         app.exit.assert_not_called()
 
     def test_unavailable_text_shows_missing_tools(self):
-        u = HostInfo(name="bad", platform="Linux", has_tmux=False, has_fzf=False)
+        u = HostInfo(name="bad", platform="Linux", auth="key",
+                    has_tmux=False, has_fzf=False)
         app = HostPicker([u])
         text = app._unavailable_text()
         assert "bad" in text
@@ -346,7 +349,7 @@ class TestPickSession:
 
 class TestPickHosts:
     def test_returns_selected_hosts(self):
-        infos = [HostInfo(name="a", has_tmux=True, has_fzf=True)]
+        infos = [HostInfo(name="a", auth="key", has_tmux=True, has_fzf=True)]
         with patch("wt_tmux_picker.tui.HostPicker") as MockApp:
             MockApp.return_value.run.return_value = infos
             result = pick_hosts(infos)
@@ -354,14 +357,14 @@ class TestPickHosts:
         MockApp.assert_called_once_with(infos)
 
     def test_returns_empty_when_cancelled(self):
-        infos = [HostInfo(name="a", has_tmux=True, has_fzf=True)]
+        infos = [HostInfo(name="a", auth="key", has_tmux=True, has_fzf=True)]
         with patch("wt_tmux_picker.tui.HostPicker") as MockApp:
             MockApp.return_value.run.return_value = None
             result = pick_hosts(infos)
         assert result == []
 
     def test_returns_empty_when_none_selected(self):
-        infos = [HostInfo(name="a", has_tmux=True, has_fzf=True)]
+        infos = [HostInfo(name="a", auth="key", has_tmux=True, has_fzf=True)]
         with patch("wt_tmux_picker.tui.HostPicker") as MockApp:
             MockApp.return_value.run.return_value = []
             result = pick_hosts(infos)
@@ -471,7 +474,8 @@ class TestHostPickerAsync:
 class TestHostPickerArrowNav:
     @pytest.mark.asyncio
     async def test_left_right_arrows_between_buttons(self):
-        e = HostInfo(name="a", platform="Linux", has_tmux=True, has_fzf=True)
+        e = HostInfo(name="a", platform="Linux", auth="key",
+                    has_tmux=True, has_fzf=True)
         app = HostPicker([e])
         async with app.run_test() as pilot:
             app.query_one("#add-host", Button).focus()
@@ -482,7 +486,8 @@ class TestHostPickerArrowNav:
 
     @pytest.mark.asyncio
     async def test_arrows_ignored_when_selection_list_focused(self):
-        e = HostInfo(name="a", platform="Linux", has_tmux=True, has_fzf=True)
+        e = HostInfo(name="a", platform="Linux", auth="key",
+                    has_tmux=True, has_fzf=True)
         app = HostPicker([e])
         async with app.run_test() as pilot:
             sl = app.query_one("#host-list", SelectionList)
@@ -491,10 +496,86 @@ class TestHostPickerArrowNav:
             assert sl.has_focus
 
 
+    @pytest.mark.asyncio
+    async def test_left_from_first_button_stays(self):
+        e = HostInfo(name="a", platform="Linux", auth="key",
+                    has_tmux=True, has_fzf=True)
+        app = HostPicker([e])
+        async with app.run_test() as pilot:
+            app.query_one("#add-host", Button).focus()
+            await pilot.press("left")
+            assert app.focused.id == "add-host"
+
+    @pytest.mark.asyncio
+    async def test_right_from_last_button_stays(self):
+        e = HostInfo(name="a", platform="Linux", auth="key",
+                    has_tmux=True, has_fzf=True)
+        app = HostPicker([e])
+        async with app.run_test() as pilot:
+            app.query_one("#confirm", Button).focus()
+            await pilot.press("right")
+            assert app.focused.id == "confirm"
+
+
+class TestHostPickerVerticalNav:
+    @pytest.mark.asyncio
+    async def test_up_from_button_focuses_list(self):
+        e = HostInfo(name="a", platform="Linux", auth="key",
+                    has_tmux=True, has_fzf=True)
+        app = HostPicker([e])
+        async with app.run_test() as pilot:
+            app.query_one("#add-host", Button).focus()
+            await pilot.press("up")
+            assert app.query_one("#host-list", SelectionList).has_focus
+
+    @pytest.mark.asyncio
+    async def test_down_from_last_list_item_focuses_button(self):
+        e = HostInfo(name="a", platform="Linux", auth="key",
+                    has_tmux=True, has_fzf=True)
+        app = HostPicker([e])
+        async with app.run_test() as pilot:
+            sl = app.query_one("#host-list", SelectionList)
+            sl.focus()
+            sl.highlighted = sl.option_count - 1
+            await pilot.press("down")
+            assert isinstance(app.focused, Button)
+
+
+class TestProfilePickerNav:
+    @pytest.mark.asyncio
+    async def test_up_from_button_focuses_list(self):
+        app = ProfilePicker(["a tmux"])
+        async with app.run_test() as pilot:
+            app.query_one("#confirm", Button).focus()
+            await pilot.press("up")
+            assert app.query_one(SelectionList).has_focus
+
+    @pytest.mark.asyncio
+    async def test_down_from_last_list_item_focuses_button(self):
+        app = ProfilePicker(["a tmux"])
+        async with app.run_test() as pilot:
+            sl = app.query_one(SelectionList)
+            sl.focus()
+            sl.highlighted = sl.option_count - 1
+            await pilot.press("down")
+            assert app.query_one("#confirm", Button).has_focus
+
+
+    @pytest.mark.asyncio
+    async def test_unhandled_key_passes_through(self):
+        app = ProfilePicker(["a tmux"])
+        async with app.run_test() as pilot:
+            sl = app.query_one(SelectionList)
+            sl.focus()
+            await pilot.press("left")
+            assert sl.has_focus
+
+
 class TestManualHostScreenAsync:
     @pytest.mark.asyncio
     async def test_compose_renders_dialog(self):
-        app = HostPicker([HostInfo(name="h", has_tmux=True, has_fzf=True)])
+        app = HostPicker([HostInfo(name="h", auth="key",
+                                      has_tmux=True, has_fzf=True)])
         async with app.run_test() as pilot:
             app.push_screen(ManualHostScreen(), callback=app._on_manual_host)
             await pilot.pause()
@@ -504,7 +585,8 @@ class TestManualHostScreenAsync:
 
     @pytest.mark.asyncio
     async def test_up_down_arrows_between_inputs(self):
-        app = HostPicker([HostInfo(name="h", has_tmux=True, has_fzf=True)])
+        app = HostPicker([HostInfo(name="h", auth="key",
+                                      has_tmux=True, has_fzf=True)])
         async with app.run_test() as pilot:
             app.push_screen(ManualHostScreen(), callback=app._on_manual_host)
             await pilot.pause()
@@ -517,7 +599,8 @@ class TestManualHostScreenAsync:
 
     @pytest.mark.asyncio
     async def test_left_right_arrows_between_buttons(self):
-        app = HostPicker([HostInfo(name="h", has_tmux=True, has_fzf=True)])
+        app = HostPicker([HostInfo(name="h", auth="key",
+                                      has_tmux=True, has_fzf=True)])
         async with app.run_test() as pilot:
             app.push_screen(ManualHostScreen(), callback=app._on_manual_host)
             await pilot.pause()
@@ -530,7 +613,8 @@ class TestManualHostScreenAsync:
 
     @pytest.mark.asyncio
     async def test_unrelated_key_on_input_not_intercepted(self):
-        app = HostPicker([HostInfo(name="h", has_tmux=True, has_fzf=True)])
+        app = HostPicker([HostInfo(name="h", auth="key",
+                                      has_tmux=True, has_fzf=True)])
         async with app.run_test() as pilot:
             app.push_screen(ManualHostScreen(), callback=app._on_manual_host)
             await pilot.pause()
@@ -538,3 +622,63 @@ class TestManualHostScreenAsync:
             screen.query_one("#hostname", Input).focus()
             await pilot.press("left")
             assert screen.focused.id == "hostname"
+
+    @pytest.mark.asyncio
+    async def test_down_from_last_input_focuses_add_button(self):
+        app = HostPicker([HostInfo(name="h", auth="key",
+                                      has_tmux=True, has_fzf=True)])
+        async with app.run_test() as pilot:
+            app.push_screen(ManualHostScreen(), callback=app._on_manual_host)
+            await pilot.pause()
+            screen = app.screen_stack[-1]
+            screen.query_one("#keyfile", Input).focus()
+            await pilot.press("down")
+            assert screen.focused.id == "add"
+
+    @pytest.mark.asyncio
+    async def test_up_from_button_focuses_last_input(self):
+        app = HostPicker([HostInfo(name="h", auth="key",
+                                      has_tmux=True, has_fzf=True)])
+        async with app.run_test() as pilot:
+            app.push_screen(ManualHostScreen(), callback=app._on_manual_host)
+            await pilot.pause()
+            screen = app.screen_stack[-1]
+            screen.query_one("#add", Button).focus()
+            await pilot.press("up")
+            assert screen.focused.id == "keyfile"
+
+    @pytest.mark.asyncio
+    async def test_up_from_first_input_stays(self):
+        app = HostPicker([HostInfo(name="h", auth="key",
+                                      has_tmux=True, has_fzf=True)])
+        async with app.run_test() as pilot:
+            app.push_screen(ManualHostScreen(), callback=app._on_manual_host)
+            await pilot.pause()
+            screen = app.screen_stack[-1]
+            screen.query_one("#hostname", Input).focus()
+            await pilot.press("up")
+            assert screen.focused.id == "hostname"
+
+    @pytest.mark.asyncio
+    async def test_left_from_first_button_stays(self):
+        app = HostPicker([HostInfo(name="h", auth="key",
+                                      has_tmux=True, has_fzf=True)])
+        async with app.run_test() as pilot:
+            app.push_screen(ManualHostScreen(), callback=app._on_manual_host)
+            await pilot.pause()
+            screen = app.screen_stack[-1]
+            screen.query_one("#add", Button).focus()
+            await pilot.press("left")
+            assert screen.focused.id == "add"
+
+    @pytest.mark.asyncio
+    async def test_right_from_last_button_stays(self):
+        app = HostPicker([HostInfo(name="h", auth="key",
+                                      has_tmux=True, has_fzf=True)])
+        async with app.run_test() as pilot:
+            app.push_screen(ManualHostScreen(), callback=app._on_manual_host)
+            await pilot.pause()
+            screen = app.screen_stack[-1]
+            screen.query_one("#cancel-dialog", Button).focus()
+            await pilot.press("right")
+            assert screen.focused.id == "cancel-dialog"

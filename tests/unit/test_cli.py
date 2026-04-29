@@ -25,6 +25,7 @@ def _write_wt_settings(tmp_path: Path, profiles: list[dict] | None = None) -> Pa
 
 
 def _info(name: str, tmux: bool = True, fzf: bool = True, **kw) -> HostInfo:
+    kw.setdefault("auth", "key")
     return HostInfo(name=name, has_tmux=tmux, has_fzf=fzf, **kw)
 
 
