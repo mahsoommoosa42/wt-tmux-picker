@@ -53,8 +53,8 @@ class SessionPicker(App[str | None]):
 # Manual host entry dialog
 # ---------------------------------------------------------------------------
 
-class ManualHostScreen(ModalScreen[tuple[str, str | None] | None]):
-    """Modal dialog for entering a hostname and optional username."""
+class ManualHostScreen(ModalScreen[tuple[str, str | None, str | None] | None]):
+    """Modal dialog for entering a hostname, optional username, and key file."""
 
     BINDINGS = [("escape", "cancel", "Cancel")]
 
@@ -80,6 +80,8 @@ class ManualHostScreen(ModalScreen[tuple[str, str | None] | None]):
             yield Input(placeholder="e.g. devbox.example.com", id="hostname")
             yield Static("Username (optional):")
             yield Input(placeholder="e.g. alice", id="username")
+            yield Static("Key file (optional):")
+            yield Input(placeholder="e.g. ~/.ssh/id_ed25519", id="keyfile")
             with Horizontal(id="btn-bar"):
                 yield Button("Add", variant="primary", id="add")
                 yield Button("Cancel", id="cancel-dialog")
@@ -113,7 +115,8 @@ class ManualHostScreen(ModalScreen[tuple[str, str | None] | None]):
             if not hostname:
                 return
             raw_user = self.query_one("#username", Input).value.strip()
-            self.dismiss((hostname, raw_user or None))
+            raw_key = self.query_one("#keyfile", Input).value.strip()
+            self.dismiss((hostname, raw_user or None, raw_key or None))
         else:
             self.dismiss(None)
 
@@ -204,13 +207,15 @@ class HostPicker(App[list[HostInfo]]):
         elif event.button.id == "confirm":
             self._confirm()
 
-    def _on_manual_host(self, result: tuple[str, str | None] | None) -> None:
+    def _on_manual_host(
+        self, result: tuple[str, str | None, str | None] | None,
+    ) -> None:
         if result is None:
             return
-        hostname, username = result
+        hostname, username, keyfile = result
         self.notify(f"Probing {hostname}\u2026")
         self.run_worker(
-            lambda: probe_host(hostname, username),
+            lambda: probe_host(hostname, username, identity_file=keyfile),
             name="probe_manual",
             exclusive=True,
             thread=True,

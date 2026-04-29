@@ -206,6 +206,16 @@ class TestProbeSsh:
         idx = args.index("BatchMode=yes")
         assert idx > 0
 
+    def test_identity_file(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "Linux\nyes\nyes\n"
+        with patch("wt_tmux_picker.host_info.subprocess.run", return_value=mock_result) as m:
+            _probe_ssh("h", None, identity_file="/tmp/key")
+        args = m.call_args[0][0]
+        assert "-i" in args
+        assert "/tmp/key" in args
+
     def test_os_error(self):
         with patch("wt_tmux_picker.host_info.subprocess.run", side_effect=OSError):
             code, out = _probe_ssh("h", None)
@@ -281,7 +291,7 @@ class TestProbeHost:
     def test_password_auth_fallback(self):
         calls = []
 
-        def fake_probe(host, user, *, batch_mode=False):
+        def fake_probe(host, user, *, identity_file=None, batch_mode=False):
             calls.append(batch_mode)
             if batch_mode:
                 return (1, "")

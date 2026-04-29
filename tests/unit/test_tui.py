@@ -110,7 +110,7 @@ class TestHostPicker:
         app = HostPicker([self._eligible()])
         app.run_worker = MagicMock()
         app.notify = MagicMock()
-        app._on_manual_host(("newhost", "alice"))
+        app._on_manual_host(("newhost", "alice", None))
         app.run_worker.assert_called_once()
         app.notify.assert_called_once()
 
@@ -237,18 +237,22 @@ class TestManualHostScreen:
         mock_hostname.value = "devbox"
         mock_username = MagicMock()
         mock_username.value = "alice"
+        mock_keyfile = MagicMock()
+        mock_keyfile.value = "~/.ssh/id_rsa"
 
         def fake_query_one(selector, cls):
             if selector == "#hostname":
                 return mock_hostname
-            return mock_username
+            if selector == "#username":
+                return mock_username
+            return mock_keyfile
 
         screen.query_one = fake_query_one
         screen.dismiss = MagicMock()
         event = MagicMock()
         event.button.id = "add"
         screen.on_button_pressed(event)
-        screen.dismiss.assert_called_once_with(("devbox", "alice"))
+        screen.dismiss.assert_called_once_with(("devbox", "alice", "~/.ssh/id_rsa"))
 
     def test_add_button_empty_hostname_ignored(self):
         screen = ManualHostScreen()
@@ -267,18 +271,22 @@ class TestManualHostScreen:
         mock_hostname.value = "devbox"
         mock_username = MagicMock()
         mock_username.value = ""
+        mock_keyfile = MagicMock()
+        mock_keyfile.value = ""
 
         def fake_query_one(selector, cls):
             if selector == "#hostname":
                 return mock_hostname
-            return mock_username
+            if selector == "#username":
+                return mock_username
+            return mock_keyfile
 
         screen.query_one = fake_query_one
         screen.dismiss = MagicMock()
         event = MagicMock()
         event.button.id = "add"
         screen.on_button_pressed(event)
-        screen.dismiss.assert_called_once_with(("devbox", None))
+        screen.dismiss.assert_called_once_with(("devbox", None, None))
 
     def test_cancel_button(self):
         screen = ManualHostScreen()

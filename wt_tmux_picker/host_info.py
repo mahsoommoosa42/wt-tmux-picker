@@ -15,6 +15,7 @@ class HostInfo:
 
     name: str
     user: str | None = None
+    identity_file: str | None = None
     platform: str = "Unknown"
     ip: str = "N/A"
     auth: str = "unknown"
@@ -116,6 +117,7 @@ def _probe_ssh(
     host: str,
     user: str | None,
     *,
+    identity_file: str | None = None,
     batch_mode: bool = False,
 ) -> tuple[int, str]:
     """Run a single SSH command that returns platform, tmux, and fzf status.
@@ -130,6 +132,8 @@ def _probe_ssh(
         '"$(command -v fzf >/dev/null 2>&1 && echo yes || echo no)"'
     )
     args = ["ssh", "-o", "ConnectTimeout=5"]
+    if identity_file:
+        args += ["-i", identity_file]
     if batch_mode:
         args += ["-o", "BatchMode=yes"]
     args += [target, cmd]
@@ -155,6 +159,7 @@ def probe_host(
     host: str,
     user: str | None = None,
     *,
+    identity_file: str | None = None,
     dry_run: bool = False,
 ) -> HostInfo:
     """Gather metadata about *host* using at most two SSH calls.
@@ -164,31 +169,37 @@ def probe_host(
     2. If key auth fails, fall back to regular SSH (may prompt for
        password) for the same data, and record auth as ``"password"``.
 
+    If *identity_file* is given, ``-i <path>`` is passed to SSH.
     IP resolution is a local DNS lookup (no SSH).
     """
     if dry_run:
-        return HostInfo(name=host, user=user, has_tmux=True, has_fzf=True)
+        return HostInfo(name=host, user=user, identity_file=identity_file,
+                        has_tmux=True, has_fzf=True)
 
     real_hostname = _resolve_hostname(host)
     ip = _resolve_ip(real_hostname)
 
     # Try key-based auth first (no password prompt).
-    code, output = _probe_ssh(host, user, batch_mode=True)
+    code, output = _probe_ssh(host, user, identity_file=identity_file,
+                              batch_mode=True)
     if code == 0:
         platform, has_tmux, has_fzf = _parse_probe(output)
         return HostInfo(
-            name=host, user=user, platform=platform, ip=ip,
+            name=host, user=user, identity_file=identity_file,
+            platform=platform, ip=ip,
             auth="key", has_tmux=has_tmux, has_fzf=has_fzf,
         )
 
     # Fall back to interactive SSH (may prompt for password).
-    code, output = _probe_ssh(host, user, batch_mode=False)
+    code, output = _probe_ssh(host, user, identity_file=identity_file,
+                              batch_mode=False)
     if code == 0:
         platform, has_tmux, has_fzf = _parse_probe(output)
         return HostInfo(
-            name=host, user=user, platform=platform, ip=ip,
+            name=host, user=user, identity_file=identity_file,
+            platform=platform, ip=ip,
             auth="password", has_tmux=has_tmux, has_fzf=has_fzf,
         )
 
     # Host unreachable.
-    return HostInfo(name=host, user=user, ip=ip)
+    return HostInfo(name=host, user=user, identity_file=identity_file, ip=ip)
