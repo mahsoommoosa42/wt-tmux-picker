@@ -87,6 +87,7 @@ LICENSE
   - `has_tmux(host, user=None, *, dry_run=False)` → check tmux availability
   - `has_fzf(host, user=None, *, dry_run=False)` → check fzf availability
   - `list_sessions(host, user=None)` → get session names
+  - `capture_pane(host, user, session)` → snapshot of a session's active pane for the picker preview
 - **Key Detail:** `dry_run=True` returns `True` (assumes tools present)
 - **Testing:** Mock `TmuxManager`
 
@@ -99,12 +100,12 @@ LICENSE
 ### `wt_tmux_picker/tui.py`
 - **Purpose:** Interactive TUI pickers using Textual
 - **Classes:**
-  - `SessionPicker` — single-select OptionList for tmux sessions
+  - `SessionPicker` — single-select OptionList for tmux sessions, optionally paired with a live preview pane. Accepts a `capture: Callable[[str], str] | None` argument — when provided, highlight events trigger a background thread worker that calls `capture(session)` and paints the result into the right-hand `#preview` widget. Workers are `exclusive=True` so rapid navigation cancels in-flight captures; stale results are filtered via `_pending_session`.
   - `HostPicker` — multi-select SelectionList for SSH hosts with view cycling and unavailable section
   - `ManualHostScreen` — modal dialog for ad-hoc hostname+username entry
   - `ProfilePicker` — multi-select SelectionList for WT profile cleanup
 - **Public Functions:**
-  - `pick_session(sessions, host)` → selected session name or `None`
+  - `pick_session(sessions, host, capture=None)` → selected session name or `None`; pass a `capture(name) -> str` callable (e.g. `TmuxManager.capture_pane`) to enable the peek preview
   - `pick_hosts(hosts: list[HostInfo])` → selected `list[HostInfo]`
   - `pick_profiles(profiles)` → selected profile names
 - **Host Picker Features:**

@@ -8,6 +8,9 @@ from textual.worker import WorkerState
 
 from wt_tmux_picker.host_info import HostInfo
 from wt_tmux_picker.tui import (
+    _CAPTURE_PREFIX,
+    _PREVIEW_EMPTY,
+    _PREVIEW_LOADING,
     HostPicker,
     ManualHostScreen,
     ProfilePicker,
@@ -23,11 +26,17 @@ class TestSessionPicker:
         app = SessionPicker(["a", "b"], "myhost")
         assert app.sessions == ["a", "b"]
         assert app.host == "myhost"
+        assert app._capture is None
 
-    def test_compose_yields_four_widgets(self):
+    def test_compose_without_capture_yields_four_widgets(self):
         app = SessionPicker(["a", "b"], "host")
         widgets = list(app.compose())
         assert len(widgets) == 4
+
+    def test_init_with_capture_stores_callable(self):
+        cap = lambda s: ""  # noqa: E731
+        app = SessionPicker(["a"], "host", capture=cap)
+        assert app._capture is cap
 
     def test_option_selected_exits_with_id(self):
         app = SessionPicker(["main"], "host")
@@ -42,6 +51,132 @@ class TestSessionPicker:
         app.exit = MagicMock()
         app.action_cancel()
         app.exit.assert_called_once_with(None)
+
+    def test_highlighted_without_capture_is_noop(self):
+        app = SessionPicker(["main"], "host")
+        app._request_preview = MagicMock()
+        event = MagicMock()
+        event.option.id = "main"
+        app.on_option_list_option_highlighted(event)
+        app._request_preview.assert_not_called()
+
+    def test_highlighted_with_none_id_ignored(self):
+        app = SessionPicker(["main"], "host", capture=lambda s: "")
+        app._request_preview = MagicMock()
+        event = MagicMock()
+        event.option.id = None
+        app.on_option_list_option_highlighted(event)
+        app._request_preview.assert_not_called()
+
+    def test_highlighted_with_capture_requests_preview(self):
+        app = SessionPicker(["main"], "host", capture=lambda s: "")
+        app._request_preview = MagicMock()
+        event = MagicMock()
+        event.option.id = "main"
+        app.on_option_list_option_highlighted(event)
+        app._request_preview.assert_called_once_with("main")
+
+    def test_request_preview_sets_loading_and_runs_worker(self):
+        cap = MagicMock(return_value="hello")
+        app = SessionPicker(["main"], "host", capture=cap)
+        title_static = MagicMock()
+        body_static = MagicMock()
+
+        def fake_query_one(selector, _cls):
+            return title_static if selector == "#preview-title" else body_static
+
+        app.query_one = fake_query_one
+        app.run_worker = MagicMock()
+        app._request_preview("main")
+        assert app._pending_session == "main"
+        title_static.update.assert_called_once_with("Preview: main")
+        body_static.update.assert_called_once_with(_PREVIEW_LOADING)
+        app.run_worker.assert_called_once()
+        kwargs = app.run_worker.call_args.kwargs
+        assert kwargs["name"] == f"{_CAPTURE_PREFIX}main"
+        assert kwargs["exclusive"] is True
+        assert kwargs["thread"] is True
+        # Worker callable should invoke the capture function.
+        worker_fn = app.run_worker.call_args.args[0]
+        assert worker_fn() == "hello"
+        cap.assert_called_with("main")
+
+    def _capture_event(self, name, state, result=""):
+        worker = MagicMock()
+        worker.name = name
+        worker.result = result
+        event = MagicMock()
+        event.worker = worker
+        event.state = state
+        return event
+
+    def test_worker_state_changed_ignores_other_workers(self):
+        app = SessionPicker(["main"], "host", capture=lambda s: "")
+        app.query_one = MagicMock()
+        event = self._capture_event("other", WorkerState.SUCCESS, "x")
+        app.on_worker_state_changed(event)
+        app.query_one.assert_not_called()
+
+    def test_worker_state_changed_ignores_unknown_none_name(self):
+        app = SessionPicker(["main"], "host", capture=lambda s: "")
+        app.query_one = MagicMock()
+        # Worker with name=None must not raise.
+        event = self._capture_event(None, WorkerState.SUCCESS, "x")
+        app.on_worker_state_changed(event)
+        app.query_one.assert_not_called()
+
+    def test_worker_state_changed_ignores_non_success(self):
+        app = SessionPicker(["main"], "host", capture=lambda s: "")
+        app._pending_session = "main"
+        app.query_one = MagicMock()
+        event = self._capture_event(
+            f"{_CAPTURE_PREFIX}main", WorkerState.RUNNING, "x",
+        )
+        app.on_worker_state_changed(event)
+        app.query_one.assert_not_called()
+
+    def test_worker_state_changed_stale_session_ignored(self):
+        app = SessionPicker(["main", "work"], "host", capture=lambda s: "")
+        app._pending_session = "work"
+        app.query_one = MagicMock()
+        event = self._capture_event(
+            f"{_CAPTURE_PREFIX}main", WorkerState.SUCCESS, "stale",
+        )
+        app.on_worker_state_changed(event)
+        app.query_one.assert_not_called()
+
+    def test_worker_state_changed_updates_preview(self):
+        app = SessionPicker(["main"], "host", capture=lambda s: "")
+        app._pending_session = "main"
+        static = MagicMock()
+        app.query_one = MagicMock(return_value=static)
+        event = self._capture_event(
+            f"{_CAPTURE_PREFIX}main", WorkerState.SUCCESS, "live text",
+        )
+        app.on_worker_state_changed(event)
+        static.update.assert_called_once_with("live text")
+
+    def test_worker_state_changed_empty_shows_placeholder(self):
+        app = SessionPicker(["main"], "host", capture=lambda s: "")
+        app._pending_session = "main"
+        static = MagicMock()
+        app.query_one = MagicMock(return_value=static)
+        event = self._capture_event(
+            f"{_CAPTURE_PREFIX}main", WorkerState.SUCCESS, "",
+        )
+        app.on_worker_state_changed(event)
+        static.update.assert_called_once_with(_PREVIEW_EMPTY)
+
+    def test_worker_state_changed_none_result_shows_placeholder(self):
+        app = SessionPicker(["main"], "host", capture=lambda s: "")
+        app._pending_session = "main"
+        static = MagicMock()
+        app.query_one = MagicMock(return_value=static)
+        event = self._capture_event(
+            f"{_CAPTURE_PREFIX}main", WorkerState.SUCCESS, None,
+        )
+        app.on_worker_state_changed(event)
+        static.update.assert_called_once_with(_PREVIEW_EMPTY)
 
 
 class TestHostPicker:
@@ -338,13 +473,22 @@ class TestPickSession:
             MockApp.return_value.run.return_value = "main"
             result = pick_session(["main", "work"], "devbox")
         assert result == "main"
-        MockApp.assert_called_once_with(["main", "work"], "devbox")
+        MockApp.assert_called_once_with(
+            ["main", "work"], "devbox", capture=None,
+        )
 
     def test_returns_none_when_cancelled(self):
         with patch("wt_tmux_picker.tui.SessionPicker") as MockApp:
             MockApp.return_value.run.return_value = None
             result = pick_session(["main"], "devbox")
         assert result is None
+
+    def test_passes_capture_callable(self):
+        cap = MagicMock(return_value="hello")
+        with patch("wt_tmux_picker.tui.SessionPicker") as MockApp:
+            MockApp.return_value.run.return_value = "main"
+            pick_session(["main"], "devbox", capture=cap)
+        MockApp.assert_called_once_with(["main"], "devbox", capture=cap)
 
 
 class TestPickHosts:
@@ -406,6 +550,35 @@ class TestSessionPickerAsync:
         async with app.run_test() as pilot:
             ol = app.query_one(OptionList)
             assert ol.has_focus
+
+    @pytest.mark.asyncio
+    async def test_on_mount_with_capture_requests_initial_preview(self):
+        captured: list[str] = []
+
+        def cap(name: str) -> str:
+            captured.append(name)
+            return f"preview-of-{name}"
+
+        app = SessionPicker(["main", "work"], "devbox", capture=cap)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await app.workers.wait_for_complete()
+            # Either on_mount or the auto-highlight (or both, dedup'd by the
+            # exclusive worker) triggers at least one capture of "main".
+            assert captured
+            assert all(name == "main" for name in captured)
+            assert app._pending_session == "main"
+            # Preview pane is mounted when capture is supplied.
+            assert app.query_one("#preview", Static) is not None
+            assert app.query_one("#preview-title", Static) is not None
+
+    @pytest.mark.asyncio
+    async def test_on_mount_with_capture_empty_sessions_skips_preview(self):
+        cap = MagicMock()
+        app = SessionPicker([], "devbox", capture=cap)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+        cap.assert_not_called()
 
 
 class TestProfilePickerAsync:

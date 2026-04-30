@@ -108,7 +108,7 @@ def _attach(host: str, user: str | None) -> int:
         _plain_ssh(host, user)
         return 0
 
-    selected = pick_session(sessions, host)
+    selected = pick_session(sessions, host, capture=mgr.capture_pane)
     if selected:
         mgr.attach_session(selected)
     else:

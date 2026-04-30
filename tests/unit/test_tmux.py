@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from wt_tmux_picker.tmux import has_fzf, has_tmux, list_sessions
+from wt_tmux_picker.tmux import capture_pane, has_fzf, has_tmux, list_sessions
 
 
-def _manager(*, available=True, sessions=None):
+def _manager(*, available=True, sessions=None, pane_text=""):
     mgr = MagicMock()
     mgr.is_available.return_value = available
     mgr.command_available.return_value = available
     mgr.list_sessions.return_value = sessions or []
+    mgr.capture_pane.return_value = pane_text
     return mgr
 
 
@@ -70,4 +71,17 @@ class TestListSessions:
     def test_passes_host_and_user(self):
         with patch("wt_tmux_picker.tmux.TmuxManager", return_value=_manager()) as mock_cls:
             list_sessions("devbox", "alice")
+        mock_cls.assert_called_once_with("devbox", "alice")
+
+
+class TestCapturePane:
+    def test_returns_pane_text(self):
+        mgr = _manager(pane_text="hello\nworld")
+        with patch("wt_tmux_picker.tmux.TmuxManager", return_value=mgr):
+            assert capture_pane("devbox", None, "main") == "hello\nworld"
+        mgr.capture_pane.assert_called_once_with("main")
+
+    def test_passes_host_and_user(self):
+        with patch("wt_tmux_picker.tmux.TmuxManager", return_value=_manager()) as mock_cls:
+            capture_pane("devbox", "alice", "main")
         mock_cls.assert_called_once_with("devbox", "alice")
