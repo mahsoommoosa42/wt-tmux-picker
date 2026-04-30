@@ -21,7 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "textual>=0.50.0",
-    "tmux-manager>=1.1.0",
+    "tmux-manager>=1.2.0",
 ]
 
 [project.urls]
@@ -37,7 +37,7 @@ wt-tmux-picker = "wt_tmux_picker.cli:main"
 
 
 [tool.uv.sources]
-tmux-manager = {git = "https://github.com/mahsoommoosa42/tmux-manager.git", rev = "e8340b6"}
+tmux-manager = {git = "https://github.com/mahsoommoosa42/tmux-manager.git", rev = "03bec7f"}
 
 [tool.setuptools.packages.find]
 where = ["."]

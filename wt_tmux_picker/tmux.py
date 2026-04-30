@@ -22,3 +22,12 @@ def has_fzf(host: str, user: str | None = None, *, dry_run: bool = False) -> boo
 def list_sessions(host: str, user: str | None = None) -> list[str]:
     """Return tmux session names on *host*, or [] if none/unreachable."""
     return TmuxManager(host, user).list_sessions()
+
+
+def capture_pane(host: str, user: str | None, session: str) -> str:
+    """Return visible contents of *session*'s active pane on *host*.
+
+    Returns an empty string if the session does not exist or the SSH
+    call fails. Intended for best-effort UI previews.
+    """
+    return TmuxManager(host, user).capture_pane(session)

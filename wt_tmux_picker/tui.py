@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Callable
+
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Header, Input, OptionList, SelectionList, Static
@@ -13,40 +15,122 @@ from textual.worker import Worker, WorkerState
 from .host_info import HostInfo, _VIEW_COUNT, probe_host
 
 
+_PREVIEW_LOADING = "Loading preview\u2026"
+_PREVIEW_EMPTY = "(no preview available)"
+_CAPTURE_PREFIX = "capture:"
+
+
 class SessionPicker(App[str | None]):
-    """Single-select picker for tmux session names."""
+    """Single-select picker for tmux session names with a live preview.
+
+    When *capture* is provided, the right-hand pane shows a snapshot of
+    the highlighted session's active pane, refreshed as the user
+    navigates. The capture runs in a background thread worker so the UI
+    stays responsive; rapid navigation cancels in-flight captures.
+    """
 
     CSS = """
     #info { padding: 1 2; color: $text-muted; }
-    OptionList { height: 1fr; margin: 0 2; }
+    #main { height: 1fr; }
+    #session-list { width: 40%; margin: 0 0 0 2; }
+    #preview-box {
+        width: 1fr;
+        margin: 0 2 0 1;
+        border: round $accent;
+        padding: 0 1;
+    }
+    #preview-title { color: $accent; height: 1; }
+    #preview-scroll { height: 1fr; }
+    #preview { width: 1fr; }
     """
     BINDINGS = [("escape", "cancel", "Plain SSH")]
 
-    def __init__(self, sessions: list[str], host: str) -> None:
+    def __init__(
+        self,
+        sessions: list[str],
+        host: str,
+        capture: Callable[[str], str] | None = None,
+    ) -> None:
         super().__init__()
         self.sessions = sessions
         self.host = host
+        self._capture = capture
+        self._pending_session: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Static(
-            f"tmux sessions on {self.host}\n"
-            "\u2191/\u2193 arrow keys to move, Enter to select, Escape for plain SSH",
-            id="info",
+        hint = (
+            "\u2191/\u2193 arrow keys to move, Enter to select, "
+            "Escape for plain SSH"
         )
-        yield OptionList(*[Option(s, id=s) for s in self.sessions])
+        if self._capture is not None:
+            hint += " \u2014 preview updates as you move"
+        yield Static(f"tmux sessions on {self.host}\n{hint}", id="info")
+        if self._capture is None:
+            yield OptionList(
+                *[Option(s, id=s) for s in self.sessions], id="session-list",
+            )
+        else:
+            with Horizontal(id="main"):
+                yield OptionList(
+                    *[Option(s, id=s) for s in self.sessions],
+                    id="session-list",
+                )
+                with Vertical(id="preview-box"):
+                    yield Static("Preview", id="preview-title")
+                    with VerticalScroll(id="preview-scroll"):
+                        yield Static("", id="preview")
         yield Footer()
 
     def on_mount(self) -> None:
-        self.query_one(OptionList).focus()
+        self.query_one("#session-list", OptionList).focus()
+        if self._capture is not None and self.sessions:
+            self._request_preview(self.sessions[0])
 
     def on_option_list_option_selected(
         self, event: OptionList.OptionSelected
     ) -> None:
         self.exit(str(event.option.id))
 
+    def on_option_list_option_highlighted(
+        self, event: OptionList.OptionHighlighted
+    ) -> None:
+        if self._capture is None:
+            return
+        opt_id = event.option.id
+        if opt_id is None:
+            return
+        self._request_preview(str(opt_id))
+
     def action_cancel(self) -> None:
         self.exit(None)
+
+    # -- preview helpers ----------------------------------------------------
+
+    def _request_preview(self, session: str) -> None:
+        self._pending_session = session
+        self.query_one("#preview-title", Static).update(f"Preview: {session}")
+        self.query_one("#preview", Static).update(_PREVIEW_LOADING)
+        capture = self._capture
+        assert capture is not None
+        self.run_worker(
+            lambda s=session: capture(s),
+            name=f"{_CAPTURE_PREFIX}{session}",
+            exclusive=True,
+            thread=True,
+        )
+
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        name = event.worker.name or ""
+        if not name.startswith(_CAPTURE_PREFIX):
+            return
+        if event.state != WorkerState.SUCCESS:
+            return
+        session = name[len(_CAPTURE_PREFIX):]
+        if session != self._pending_session:
+            return
+        output = event.worker.result or ""
+        self.query_one("#preview", Static).update(output or _PREVIEW_EMPTY)
 
 
 # ---------------------------------------------------------------------------
@@ -356,9 +440,18 @@ class ProfilePicker(App[list[str]]):
 # Public API
 # ---------------------------------------------------------------------------
 
-def pick_session(sessions: list[str], host: str) -> str | None:
-    """Show a list of tmux session names; return chosen name or None."""
-    app = SessionPicker(sessions, host)
+def pick_session(
+    sessions: list[str],
+    host: str,
+    capture: Callable[[str], str] | None = None,
+) -> str | None:
+    """Show a list of tmux session names; return chosen name or None.
+
+    If *capture* is supplied, the picker shows a live preview of the
+    highlighted session's active pane by calling ``capture(name)`` in a
+    background worker.
+    """
+    app = SessionPicker(sessions, host, capture=capture)
     return app.run()
 
 

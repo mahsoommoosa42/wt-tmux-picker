@@ -2,18 +2,18 @@
 
 Automatically register Windows Terminal profiles that open an interactive tmux session picker for your SSH hosts.
 
-When you open a registered profile, a TUI dropdown lists your live tmux sessions. Select one to attach, or press Escape to open a plain SSH shell.
+When you open a registered profile, a TUI dropdown lists your live tmux sessions with a live **preview** of the highlighted session's active pane on the right. Select one to attach, or press Escape to open a plain SSH shell.
 
 ```
-  Select tmux session on devbox:
+  tmux sessions on devbox:
 
-  ┌────────────────────┐
-  │ > main             │
-  │   work             │
-  │   logs             │
-  └────────────────────┘
+  ┌─────────────┐ ╭── Preview: main ──────────────────╮
+  │ > main      │ │ $ tail -f logs/server.log         │
+  │   work      │ │ 12:44:01 INFO serving on :8080    │
+  │   logs      │ │ 12:44:03 INFO GET / 200 1.2ms     │
+  └─────────────┘ ╰───────────────────────────────────╯
 
-  ↑/↓ to move, Enter to select, Escape for plain SSH
+  ↑/↓ to move (preview updates), Enter to attach, Escape for plain SSH
 ```
 
 ## Prerequisites
