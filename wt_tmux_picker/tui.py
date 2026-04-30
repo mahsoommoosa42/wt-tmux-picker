@@ -31,8 +31,9 @@ class SessionPicker(App[str | None]):
 
     CSS = """
     #info { padding: 1 2; color: $text-muted; }
+    #session-list { height: 1fr; margin: 0 2; }
     #main { height: 1fr; }
-    #session-list { width: 40%; margin: 0 0 0 2; }
+    #main #session-list { width: 40%; margin: 0 0 0 2; }
     #preview-box {
         width: 1fr;
         margin: 0 2 0 1;
